@@ -1,4 +1,4 @@
-name = "vitrio-start"
+name = "vitrio-start-homepage"
 main = "src/server/workers.ts"
 compatibility_date = "2026-02-16"
 
