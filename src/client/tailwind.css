@@ -9,6 +9,20 @@ html, body {
   height: 100%;
 }
 
+/* Prevent "one long code line" from causing page-level horizontal scroll.
+   Keep scroll confined inside code blocks. */
+.shiki {
+  margin: 0;
+  padding: 1rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.shiki code {
+  display: block;
+  min-width: max-content;
+}
+
 /* Subtle grid + radial glow like modern landing pages */
 .bg-grid {
   background-image:

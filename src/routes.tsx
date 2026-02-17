@@ -287,7 +287,7 @@ export const routes = [
                 </div>
               </aside>
 
-              <main class="rounded-3xl border border-zinc-800 bg-zinc-900/30 p-6 sm:p-8">
+              <main class="min-w-0 rounded-3xl border border-zinc-800 bg-zinc-900/30 p-6 sm:p-8">
                 <div class="flex items-start justify-between gap-6">
                   <div>
                     <div class="text-sm font-medium text-zinc-400">Reference</div>
@@ -310,7 +310,7 @@ export const routes = [
                     const html = p.htmlKey ? HIGHLIGHT[p.htmlKey] : undefined
 
                     return (
-                      <div class="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60">
+                      <div class="mt-4 min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60">
                         <div class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-2">
                           <div class="text-xs font-semibold text-zinc-300">{p.title}</div>
                           <div class="flex items-center gap-3">
