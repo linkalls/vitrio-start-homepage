@@ -1,6 +1,7 @@
 name = "vitrio-start-homepage"
 main = "src/server/workers.ts"
 compatibility_date = "2026-02-16"
+account_id = "ef1f31e8fa529ee1f1866c2033a95923"
 
 # Serve built client assets from Vite output, but keep `/` handled by the Worker (SSR).
 # This prevents `dist/client/index.html` from shadowing the Worker response.
