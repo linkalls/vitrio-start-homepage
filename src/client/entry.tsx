@@ -101,8 +101,8 @@ function enhanceTocActiveSection() {
 }
 
 function main() {
-  // For now, only enhance reference page.
-  if (location.pathname !== '/reference') return
+  // Enhance reference pages only.
+  if (!location.pathname.startsWith('/reference')) return
 
   enhanceCopyButtons()
   enhanceTocActiveSection()
