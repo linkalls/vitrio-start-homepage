@@ -640,8 +640,9 @@ export const routes = [
     component: ({ csrfToken }) => {
       const toc: TocLink[] = [
         { href: '#overview', label: 'Overview' },
-        { href: '#prg', label: 'PRG' },
-        { href: '#forms', label: 'Forms' },
+        { href: '#flow', label: 'Request flow (PRG)' },
+        { href: '#example', label: 'Example' },
+        { href: '#framework', label: 'Internals' },
       ]
 
       return (
@@ -654,43 +655,100 @@ export const routes = [
           <DocArticle>
             <section id="overview">
               <h2>Overview</h2>
-              <p class="mt-3">action は普通のPOSTハンドラ。RPC化しない。</p>
+              <p class="mt-3">
+                vitrio-start の action は普通の POST ハンドラです。
+                <span class="font-mono text-zinc-200">routes.tsx</span> に関数として定義し、フォームから直接呼び出します（JS不要）。
+                サーバーサイドで実行され、データベース操作などの副作用を起こします。
+              </p>
             </section>
 
-            <section id="prg">
-              <h2>PRG</h2>
-              <p class="mt-3">二重送信を避ける。リロードしても安全。</p>
+            <section id="flow">
+              <h2>Request flow (PRG)</h2>
+              <p class="mt-3">
+                POST リクエストは以下の流れで処理されます。これにより、ブラウザの「戻る」ボタンやリロードによる二重送信を防ぎます（PRGパターン）。
+              </p>
               <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div class="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
-                  <div class="text-sm font-semibold">POST</div>
+                  <div class="text-sm font-semibold text-indigo-300">1. POST (Action)</div>
                   <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
-                    <li>validate</li>
-                    <li>mutate</li>
-                    <li>set flash</li>
-                    <li>303</li>
+                    <li>CSRF check</li>
+                    <li>Execute action()</li>
+                    <li>Set Flash Cookie (result)</li>
+                    <li><strong>303 Redirect</strong> to GET</li>
                   </ul>
                 </div>
                 <div class="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
-                  <div class="text-sm font-semibold">GET</div>
+                  <div class="text-sm font-semibold text-emerald-300">2. GET (Render)</div>
                   <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
-                    <li>read flash</li>
-                    <li>render</li>
+                    <li>Read & Clear Flash Cookie</li>
+                    <li>Run loader()</li>
+                    <li>SSR HTML with Flash message</li>
                   </ul>
                 </div>
               </div>
             </section>
 
-            <section id="forms">
-              <h2>Forms</h2>
-              <p class="mt-3">CSRF hidden input を忘れずに。</p>
+            <section id="example">
+              <h2>Example: Form Action</h2>
+              <p class="mt-3">
+                シンプルなフォーム処理の例です。バリデーション失敗時や成功時のリダイレクトを制御できます。
+              </p>
               <CodeBlock
-                title="form"
-                lang="html"
-                htmlKey="form_html"
-                code={`<form method="post">\n  <input type="hidden" name="_csrf" value={csrfToken} />\n  ...\n</form>`}
+                title="src/routes.tsx (Action)"
+                lang="ts"
+                htmlKey="action_ts"
+                code={`import { redirect } from './server/response'
+
+export const action = async (ctx, formData) => {
+  const email = formData.get('email')
+  
+  // 1. Validation
+  if (!email || typeof email !== 'string') {
+    // Return redirect with flash (handled by framework)
+    // Note: framework.tsx handles the actual cookie setting based on return value
+    // or you can set it manually if you modify framework.
+    // In default starter:
+    return { ok: false, error: 'Email is required' }
+  }
+
+  // 2. Mutation (e.g. D1, KV)
+  await ctx.env.DB.prepare('INSERT INTO users...').run()
+
+  // 3. Success (PRG)
+  return redirect('/thanks', { status: 303 })
+}`}
               />
-              <div class="mt-3 text-xs text-zinc-500">(csrfToken is available in component props)</div>
-              <div class="mt-2 text-sm text-zinc-400">今のページの csrfToken（例）: <span class="font-mono text-zinc-200">{csrfToken.slice(0, 8)}…</span></div>
+              <p class="mt-3 text-sm text-zinc-400">
+                <span class="font-mono text-zinc-200">redirect()</span> ヘルパーを使うと、ステータスコード 303 で指定パスへ遷移します。
+                何もしなければ、現在のパスへ 303 リダイレクト（リロード相当）します。
+              </p>
+            </section>
+
+            <section id="framework">
+              <h2>Framework Internals</h2>
+              <p class="mt-3">
+                この挙動は <span class="font-mono text-zinc-200">src/server/framework.tsx</span> で実装されています。隠蔽された黒魔術ではなく、あなたが所有するコードの一部です。
+              </p>
+              <CodeBlock
+                title="src/server/framework.tsx"
+                lang="ts"
+                htmlKey="framework_post_ts"
+                code={`// src/server/framework.tsx (Simplified)
+if (method === 'POST') {
+  const r = await runMatchedAction(c, routes, path, url)
+
+  if (r.kind === 'redirect') {
+    return c.redirect(r.to, r.status)
+  }
+  
+  // Set flash cookie based on result
+  setFlash(c, { ok: r.kind === 'ok', at: Date.now() })
+  return c.redirect(path, 303)
+}`}
+              />
+              <p class="mt-3 text-sm text-zinc-400">
+                必要であれば、このファイルを編集して Flash の挙動やエラーハンドリングをカスタマイズできます。
+              </p>
             </section>
           </DocArticle>
         </RefChrome>

@@ -14,6 +14,46 @@ const SNIPS = [
 })`,
   },
   {
+    key: 'action_ts',
+    lang: 'ts',
+    code: `import { redirect } from './server/response'
+
+export const action = async (ctx, formData) => {
+  const email = formData.get('email')
+  
+  // 1. Validation
+  if (!email || typeof email !== 'string') {
+    // Return redirect with flash (handled by framework)
+    // Note: framework.tsx handles the actual cookie setting based on return value
+    // or you can set it manually if you modify framework.
+    // In default starter:
+    return { ok: false, error: 'Email is required' }
+  }
+
+  // 2. Mutation (e.g. D1, KV)
+  await ctx.env.DB.prepare('INSERT INTO users...').run()
+
+  // 3. Success (PRG)
+  return redirect('/thanks', { status: 303 })
+}`,
+  },
+  {
+    key: 'framework_post_ts',
+    lang: 'ts',
+    code: `// src/server/framework.tsx (Simplified)
+if (method === 'POST') {
+  const r = await runMatchedAction(c, routes, path, url)
+
+  if (r.kind === 'redirect') {
+    return c.redirect(r.to, r.status)
+  }
+  
+  // Set flash cookie based on result
+  setFlash(c, { ok: r.kind === 'ok', at: Date.now() })
+  return c.redirect(path, 303)
+}`,
+  },
+  {
     key: 'form_html',
     lang: 'html',
     code: `<form method="post">\n  <input type="hidden" name="_csrf" value={csrfToken} />\n  ...\n</form>`,
@@ -26,7 +66,7 @@ const SNIPS = [
   {
     key: 'wrangler_toml',
     lang: 'toml',
-    code: `[assets]\ndirectory = "dist/client"\nbinding = "ASSETS"\nrun_worker_first = true`,
+    code: `[assets]\ndirectory = "dist/client"\nbinding = "ASSETS"\nrun_worker_first = false`,
   },
   {
     key: 'commands_bash',

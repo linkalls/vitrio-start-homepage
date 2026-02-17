@@ -10,7 +10,7 @@
     "start": "bun src/server/index.tsx",
     "build": "bun run build:highlight && bun run build:client && bun run build:css",
     "build:highlight": "node scripts/gen-highlight.mjs",
-    "build:client": "bunx vite build && node scripts/fix-entry.js",
+    "build:client": "bunx vite build && rm -f dist/client/index.html && node scripts/fix-entry.js",
     "build:css": "bunx @tailwindcss/cli -i src/client/tailwind.css -o dist/client/assets/tailwind.css --minify",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test",

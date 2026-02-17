@@ -3,9 +3,10 @@ main = "src/server/workers.ts"
 compatibility_date = "2026-02-16"
 account_id = "ef1f31e8fa529ee1f1866c2033a95923"
 
-# Serve built client assets from Vite output, but keep `/` handled by the Worker (SSR).
-# This prevents `dist/client/index.html` from shadowing the Worker response.
+# Serve built client assets from Vite output.
+# Since we delete `dist/client/index.html` post-build, the root `/` will hit the Worker (SSR),
+# while CSS/JS/Images will be served directly by Assets CDN (bypassing Worker invocation).
 [assets]
 directory = "dist/client"
 binding = "ASSETS"
-run_worker_first = true
+run_worker_first = false
