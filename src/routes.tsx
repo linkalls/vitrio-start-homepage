@@ -1072,10 +1072,13 @@ export const action = async (ctx, formData) => {
               </div>
 
               <div class="mt-6 grid gap-6 sm:grid-cols-2">
-                <div>
+                <div class="min-w-0">
                   <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Server (Call-site)</div>
-                  <pre class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-[11px] text-zinc-300">
-                    <code>{`// routes.tsx (SSR)
+                  <CodeBlock
+                    title="routes.tsx (SSR)"
+                    lang="ts"
+                    htmlKey="island_server_ts"
+                    code={`// routes.tsx (SSR)
 import { island } from './server/island'
 import { Counter } from './components/Counter'
 
@@ -1085,13 +1088,16 @@ export function Page() {
       {island(Counter, { initial: 1 }, { name: 'Counter' })}
     </div>
   )
-}`}</code>
-                  </pre>
+}`}
+                  />
                 </div>
-                <div>
+                <div class="min-w-0">
                   <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Client (Auto-generated registry)</div>
-                  <pre class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-[11px] text-zinc-300">
-                    <code>{`// client/entry.tsx
+                  <CodeBlock
+                    title="client/entry.tsx"
+                    lang="ts"
+                    htmlKey="island_client_ts"
+                    code={`// client/entry.tsx
 import { hydrateIslands } from './islands'
 
 async function main() {
@@ -1100,8 +1106,8 @@ async function main() {
   hydrateIslands(islands)
 }
 
-main()`}</code>
-                  </pre>
+main()`}
+                  />
                 </div>
               </div>
             </section>
