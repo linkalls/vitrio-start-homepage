@@ -127,9 +127,28 @@ function RefChrome(p: {
   return (
     <div class="bg-grid">
       <div class="mx-auto max-w-7xl px-6 py-12">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-3">
           <Brand />
-          <a href="/" class="text-sm text-zinc-300 hover:text-zinc-100">← Back</a>
+          <div class="flex items-center gap-2">
+            {/* Mobile: hamburger to jump to other reference pages */}
+            <details class="relative lg:hidden">
+              <summary class="list-none cursor-pointer rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-950">
+                Menu
+              </summary>
+              <div class="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 shadow-xl">
+                <div class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Reference</div>
+                <nav class="grid">
+                  {REF_PAGES.filter((x) => x.path !== p.path).map((x) => (
+                    <a class="px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-900/60" href={x.path}>
+                      <div class="font-medium">{x.title}</div>
+                      <div class="text-xs text-zinc-500">{x.short}</div>
+                    </a>
+                  ))}
+                </nav>
+              </div>
+            </details>
+            <a href="/" class="text-sm text-zinc-300 hover:text-zinc-100">← Back</a>
+          </div>
         </div>
 
         <div class="mt-10 grid gap-10 lg:grid-cols-[260px_1fr]">
