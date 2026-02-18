@@ -347,6 +347,88 @@ export const routes = [
               </div>
             </div>
 
+            <section class="mt-16" id="what">
+              <h2 class="text-xl font-semibold">What is vitrio-start?</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                vitrio-start は <strong>Cloudflare Workers</strong> を前提にした SSR フレームワーク（スターター）なのだ。
+                Next.js や TanStack Start みたいに「フルスタック」だけど、<strong>魔法を増やさず</strong>、HTTPの素直さを優先する。
+              </p>
+              <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-indigo-200">Positioning</div>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>Workers の SSR でページを返す</li>
+                    <li>フォームは action で処理（PRG）</li>
+                    <li>データ取得は loader（GET）</li>
+                    <li>クライアントJSは必要最小限（Islands）</li>
+                  </ul>
+                </div>
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-indigo-200">Non-goals</div>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>server actions を RPC 魔法にしない</li>
+                    <li>巨大なバンドル/複雑なコンパイラは持たない</li>
+                    <li>"勝手に最適化" より "読める" を優先</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+            <section class="mt-16" id="how-it-works">
+              <h2 class="text-xl font-semibold">How it works (mental model)</h2>
+              <p class="mt-3 text-zinc-300 leading-7">ざっくりこの流れだけ覚えると迷子にならないのだ。</p>
+              <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-emerald-300">GET</div>
+                  <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>route match</li>
+                    <li>loader 実行（必要な分）</li>
+                    <li>SSR（HTML生成）</li>
+                    <li>Assets は CDN（Worker を起動しない）</li>
+                  </ol>
+                </div>
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-indigo-300">POST</div>
+                  <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>CSRF verify</li>
+                    <li>action 実行（副作用）</li>
+                    <li>flash cookie set</li>
+                    <li>303 redirect → GET</li>
+                  </ol>
+                </div>
+              </div>
+            </section>
+
+            <section class="mt-16" id="islands">
+              <h2 class="text-xl font-semibold">Islands (Hydration)</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                vitrio-start は <span class="font-mono text-zinc-200">data-island</span> マーカー + 自動生成 registry で、
+                TSXコンポーネントをクライアントで mount できる（use client っぽい体験）。
+                ※現状は island 単位の置き換え mount（true hydrate は今後）。
+              </p>
+              <div class="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4 text-sm text-zinc-400">
+                <div class="font-semibold text-zinc-200">Convention</div>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                  <li><span class="font-mono text-zinc-200">src/**/**/*.client.tsx</span> を置く</li>
+                  <li>default export 推奨（名前はファイル名から推測）</li>
+                  <li>ビルド時に registry を自動生成して islands を hydrate</li>
+                </ul>
+              </div>
+            </section>
+
+            <section class="mt-16" id="deploy-cost">
+              <h2 class="text-xl font-semibold">Deploy & Cost</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                静的アセットは <span class="font-mono text-zinc-200">[assets]</span> で CDN 配信し、Worker を起動しない。
+                HTML（SSR）だけ Worker が返すので、コストと速度が読みやすい。
+              </p>
+              <CodeBlock
+                title="wrangler.toml"
+                lang="toml"
+                code={`[assets]\ndirectory = \"dist/client\"\nbinding = \"ASSETS\"\nrun_worker_first = false`}
+              />
+            </section>
+
             <div class="mt-16 flex items-center justify-between border-t border-zinc-900/80 py-8 text-xs text-zinc-500">
               <div>© {new Date().getUTCFullYear()} vitrio-start</div>
               <div class="flex items-center gap-3">
