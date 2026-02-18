@@ -134,7 +134,7 @@ function RefChrome(p: {
             </summary>
             <nav class="mt-4 grid gap-1 text-sm">
               {p.toc.map((l) => (
-                <a data-toc-link class="rounded-xl px-3 py-2 text-zinc-300 hover:bg-zinc-950/60" href={l.href}>
+                <a data-toc-link class="rounded-xl px-3 py-2 text-zinc-300 hover:bg-zinc-950/60 data-[active=1]:bg-zinc-950/60 data-[active=1]:text-zinc-100" href={l.href}>
                   {l.label}
                 </a>
               ))}
@@ -147,7 +147,7 @@ function RefChrome(p: {
               <div class="text-xs font-semibold uppercase tracking-wider text-zinc-400">On this page</div>
               <nav class="mt-4 grid gap-1 text-sm">
                 {p.toc.map((l) => (
-                  <a data-toc-link class="rounded-xl px-3 py-2 text-zinc-300 hover:bg-zinc-950/60" href={l.href}>
+                  <a data-toc-link class="rounded-xl px-3 py-2 text-zinc-300 hover:bg-zinc-950/60 data-[active=1]:bg-zinc-950/60 data-[active=1]:text-zinc-100" href={l.href}>
                     {l.label}
                   </a>
                 ))}
@@ -731,91 +731,150 @@ export const routes = [
     component: ({ data }) => {
       z.object({ version: z.string() }).parse(data)
       const toc: TocLink[] = [
-        { href: '#overview', label: 'Overview' },
-        { href: '#dynamic-params', label: 'Dynamic params' },
-        { href: '#contracts', label: 'Contracts' },
+        { href: '#the-shape', label: 'The shape of a route' },
+        { href: '#matching', label: 'Matching rules' },
+        { href: '#params', label: 'Params (and merging)' },
+        { href: '#prefix-layouts', label: 'Prefix routes (layouts)' },
+        { href: '#normalization', label: 'URL normalization' },
+        { href: '#status', label: '404 vs * route' },
       ]
 
       return (
         <RefChrome
           path="/reference/routing"
           title="Routing"
-          subtitle="pathのマッチ、paramsの取り回し、leaf優先のルール。"
+          subtitle="React の mental model で読む: ルート = data。path が match して loader/action/component が走るだけ。"
           toc={toc}
         >
           <DocArticle>
-            <section id="overview">
-              <h2>Overview</h2>
+            <section id="the-shape">
+              <h2>The shape of a route</h2>
               <p class="mt-3">
-                vitrio-start のルーティングは、URLとページの1対1のマッピングを定義するシンプルな仕組みです。
-                <span class="font-mono text-zinc-200">routes.tsx</span> に配列として定義し、上から順に評価されます。
+                vitrio-start のルートは <span class="font-mono text-zinc-200">defineRoute</span> に渡すただのオブジェクトです。
+                React で言うと「コンポーネントに渡す props の束」みたいなもので、フレームワークが読むための設定データ。
               </p>
               <CodeBlock
-                title="routes.tsx"
+                title="RouteDef (concept)"
                 lang="ts"
-                htmlKey="routes_ts"
-                code={`defineRoute({\n  path: '/reference',\n  loader: (ctx) => ({ /* ... */ }),\n  action: (ctx, formData) => ({ /* ... */ }),\n  component: ({ data, csrfToken }) => <Page />,\n})`}
+                htmlKey="route_def_ts"
+                code={`type RouteDef = {
+  path: string
+  client?: boolean
+  loader?: (ctx: LoaderCtx) => unknown | Promise<unknown>
+  action?: (ctx: LoaderCtx, formData: FormData) => unknown | Promise<unknown>
+  component: (props: {
+    data: unknown
+    action: ActionApi<FormData, unknown>
+    csrfToken: string
+  }) => unknown
+}`}
               />
+              <p class="mt-3">
+                <span class="font-mono text-zinc-200">loader</span> と <span class="font-mono text-zinc-200">action</span> は “React の event handler / data fetch”
+                に見えるけど、実体は Plain HTTP（GET/POST）です。
+              </p>
             </section>
 
-            <section id="dynamic-params">
-              <h2>Dynamic Params</h2>
+            <section id="matching">
+              <h2>Matching rules</h2>
               <p class="mt-3">
-                パスセグメントに <span class="font-mono text-zinc-200">:</span> を付けることで、動的なパラメータをキャプチャできます。
-                キャプチャされた値は <span class="font-mono text-zinc-200">params</span> オブジェクトとして <span class="font-mono text-zinc-200">loader</span>, <span class="font-mono text-zinc-200">action</span> に渡されます。
+                マッチは <strong>URL pathname</strong> に対して行われます（query はマッチ条件に使わない）。
+                ルールはシンプルで、セグメント単位に比較します。
               </p>
-              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
-                <div class="text-sm font-semibold text-emerald-300">Supported Patterns</div>
-                <ul class="mt-2 space-y-2 text-sm text-zinc-400">
-                  <li class="flex items-center gap-2">
-                    <span class="font-mono text-zinc-200">/users/:id</span>
-                    <span>→ matches <span class="font-mono">/users/123</span></span>
-                  </li>
-                  <li class="flex items-center gap-2">
-                    <span class="font-mono text-zinc-200">/posts/:slug/edit</span>
-                    <span>→ matches <span class="font-mono">/posts/hello-world/edit</span></span>
-                  </li>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-300">
+                <div class="font-semibold text-zinc-100">Supported patterns</div>
+                <ul class="mt-2 list-disc space-y-1 pl-5 text-zinc-400">
+                  <li><span class="font-mono text-zinc-200">/users/123</span> : static segments</li>
+                  <li><span class="font-mono text-zinc-200">/users/:id</span> : dynamic segment (captures <span class="font-mono">id</span>)</li>
+                  <li><span class="font-mono text-zinc-200">/dashboard/*</span> : prefix match (layout-style)</li>
+                  <li><span class="font-mono text-zinc-200">*</span> : catch-all (UI 404 route)</li>
                 </ul>
               </div>
               <CodeBlock
-                title="Dynamic Params Usage"
+                title="Dynamic segment"
                 lang="ts"
                 htmlKey="routing_param_ts"
-                code={`defineRoute({\n  path: '/users/:id',\n  loader: ({ params }) => {\n    // params.id is string (URL decoded)\n    return { userId: params.id }\n  },\n  component: ({ data }) => <div>User {data.userId}</div>\n})`}
+                code={`defineRoute({
+  path: '/users/:id',
+  loader: ({ params }) => ({ userId: params.id }),
+  component: ({ data }) => <div>User {data.userId}</div>,
+})`}
               />
             </section>
 
-            <section id="contracts">
-              <h2>Routing Contracts</h2>
+            <section id="params">
+              <h2>Params (and merging)</h2>
               <p class="mt-3">
-                フレームワークが保証するルーティングの挙動（仕様）です。これを知っておくと、迷わず設計できます。
+                <span class="font-mono text-zinc-200">:param</span> でキャプチャした値は
+                <span class="font-mono text-zinc-200">ctx.params</span> に入ります。
+                さらに vitrio-start は「prefix route を layout として使う」ために、
+                <strong>親 → 子の順で params を merge</strong> します。
               </p>
-              
-              <div class="mt-6 space-y-8">
-                <div>
-                  <h3 class="text-lg font-semibold text-zinc-100">1. Prefix Matching & Ordering</h3>
-                  <p class="mt-2 text-sm text-zinc-300">
-                    ルートは **定義順** にマッチングを試みます。最初にマッチしたルートが採用されます（First Match Wins）。
-                    ただし、Action（POST）の場合は、より具体的な（深い）ルートが優先される場合があります。
-                  </p>
-                </div>
+              <CodeBlock
+                title="Params merging (concept)"
+                lang="ts"
+                htmlKey="routing_merge_params_ts"
+                code={`// matched: /orgs/:orgId/*  and  /orgs/:orgId/repos/:repoId
+// ctx.params becomes: { orgId: 'acme', repoId: 'vitrio' }
+loader: ({ params }) => {
+  params.orgId
+  params.repoId
+}`}
+              />
+              <p class="mt-3 text-sm text-zinc-400">
+                ルールは「同名キーがあれば後勝ち」。つまり leaf 側が上書きします。
+              </p>
+            </section>
 
-                <div>
-                  <h3 class="text-lg font-semibold text-zinc-100">2. Normalization</h3>
-                  <p class="mt-2 text-sm text-zinc-300">
-                    末尾のスラッシュ（Trailing Slash）は自動的に削除されます。
-                    <span class="font-mono text-zinc-400">/foo/</span> へのアクセスは <span class="font-mono text-zinc-400">/foo</span> へ 301 リダイレクトされます。
-                    SEOとキャッシュの一貫性を保つためです。
-                  </p>
-                </div>
+            <section id="prefix-layouts">
+              <h2>Prefix routes (layouts)</h2>
+              <p class="mt-3">
+                <span class="font-mono text-zinc-200">/parent/*</span> みたいな prefix route を作ると、
+                <span class="font-mono text-zinc-200">/parent/child</span> の GET で <strong>両方の loader</strong> が走ります（親 → 子）。
+                これは React でいう「Layout が data を読み、Leaf が追加で読む」構造に近い。
+              </p>
+              <CodeBlock
+                title="Prefix route + leaf route"
+                lang="ts"
+                htmlKey="routing_prefix_ts"
+                code={`export const routes = [
+  defineRoute({
+    path: '/dashboard/*',
+    loader: async ({ env }) => ({ viewer: await getViewer(env) }),
+    component: ({ data }) => <DashboardLayout viewer={data.viewer} />,
+  }),
+  defineRoute({
+    path: '/dashboard/settings',
+    loader: async () => ({ tab: 'settings' }),
+    component: ({ data }) => <Settings tab={data.tab} />,
+  }),
+]`}
+              />
+            </section>
 
-                <div>
-                  <h3 class="text-lg font-semibold text-zinc-100">3. Wildcards</h3>
-                  <p class="mt-2 text-sm text-zinc-300">
-                    <span class="font-mono text-zinc-200">*</span> を使うと、それ以降のすべてのパスにマッチします（Prefix Match）。
-                    404ページや、SPAのようなクライアントサイド・ルーティングを行いたい場合に使います。
-                  </p>
-                </div>
+            <section id="normalization">
+              <h2>URL normalization</h2>
+              <p class="mt-3">
+                ドキュメントリクエストでは末尾スラッシュを正規化します。
+                <span class="font-mono text-zinc-200">/foo/</span> へのアクセスは <span class="font-mono text-zinc-200">/foo</span> に 301 で寄せます
+                （root の <span class="font-mono">/</span> は例外）。
+              </p>
+            </section>
+
+            <section id="status">
+              <h2>404 vs the <span class="font-mono text-zinc-200">*</span> route</h2>
+              <p class="mt-3">
+                vitrio-start は「HTTP ステータス」と「UI」の責務を分けています。
+              </p>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+                <ul class="list-disc space-y-2 pl-5">
+                  <li>
+                    <strong>HTTP 404</strong>: loader が <span class="font-mono">notFound()</span> を返す/投げる、またはマッチがゼロ。
+                  </li>
+                  <li>
+                    <strong>UI</strong>: アプリ側で <span class="font-mono">path: '*'</span> を置いて「見た目の 404 ページ」を実装する。
+                  </li>
+                </ul>
               </div>
             </section>
           </DocArticle>
@@ -832,101 +891,151 @@ export const routes = [
     component: () => {
       const toc: TocLink[] = [
         { href: '#overview', label: 'Overview' },
-        { href: '#loader-signature', label: 'Loader signature' },
-        { href: '#patterns', label: 'Patterns' },
-        { href: '#error-handling', label: 'Error handling' },
+        { href: '#signature', label: 'LoaderCtx' },
+        { href: '#execution', label: 'Execution model' },
+        { href: '#cache', label: 'SSR cache priming' },
+        { href: '#redirect-notfound', label: 'redirect() / notFound()' },
+        { href: '#serialization', label: 'Serialization rules' },
+        { href: '#patterns', label: 'Common patterns' },
       ]
 
       return (
         <RefChrome
           path="/reference/data-loading"
           title="Data loading"
-          subtitle="GETリクエスト時にデータを取得し、SSRを行うまでの流れ。"
+          subtitle="loader は GET 専用。SSR 前に props を作る関数、と考えると React っぽく理解できる。"
           toc={toc}
         >
           <DocArticle>
             <section id="overview">
               <h2>Overview</h2>
               <p class="mt-3">
-                <span class="font-mono text-zinc-200">loader</span> は、GETリクエスト時にサーバーサイドで実行される非同期関数です。
-                データベースへの問い合わせや外部APIコールを行い、その結果をオブジェクトとして返します。
-                返されたデータは、<span class="font-mono text-zinc-200">component</span> の <span class="font-mono text-zinc-200">props.data</span> に型安全に渡されます。
+                <span class="font-mono text-zinc-200">loader</span> は GET リクエストのときにサーバーで実行され、
+                コンポーネントに渡す <span class="font-mono text-zinc-200">data</span> を作ります。
+                つまり React の「Server で props を計算して渡す」モデル。
               </p>
+              <CodeBlock
+                title="Loader → Component data"
+                lang="ts"
+                htmlKey="loader_to_component_ts"
+                code={`import { notFound } from './server/response'
+
+defineRoute({
+  path: '/posts/:slug',
+  loader: async ({ params, env }) => {
+    const post = await env.DB.prepare('SELECT * FROM posts WHERE slug = ?')
+      .bind(params.slug)
+      .first()
+    if (!post) return notFound()
+    return { post }
+  },
+  component: ({ data }) => <PostPage post={data.post} />,
+})`}
+              />
             </section>
 
-            <section id="loader-signature">
-              <h2>Loader Signature</h2>
+            <section id="signature">
+              <h2>LoaderCtx</h2>
               <p class="mt-3">
-                <span class="font-mono text-zinc-200">loader</span> 関数は、<span class="font-mono text-zinc-200">LoaderCtx</span> オブジェクトを受け取ります。
+                loader が受け取るのは Web の Request そのものではなく、ルート解決に必要な情報をまとめた <span class="font-mono text-zinc-200">LoaderCtx</span>。
+                依存を小さくして “React っぽく純粋に” 書けるようにしてあります。
               </p>
-              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm">
-                <ul class="space-y-3 text-zinc-300">
-                  <li>
-                    <span class="font-mono text-indigo-300">params</span>
-                    <br />
-                    <span class="text-zinc-400">動的ルートパラメータ（例: /users/:id → {`{ id: "123" }`}）。</span>
-                  </li>
-                  <li>
-                    <span class="font-mono text-indigo-300">request</span>
-                    <br />
-                    <span class="text-zinc-400">Web Standard Request オブジェクト。URLやHeadersへのアクセスに使用します。</span>
-                  </li>
-                  <li>
-                    <span class="font-mono text-indigo-300">env</span>
-                    <br />
-                    <span class="text-zinc-400">Cloudflare Workers Env（D1, KV, R2 バインディングなど）。</span>
-                  </li>
-                  <li>
-                    <span class="font-mono text-indigo-300">ctx</span>
-                    <br />
-                    <span class="text-zinc-400">Workers ExecutionContext（waitUntil など）。</span>
-                  </li>
+              <CodeBlock
+                title="LoaderCtx (what you get)"
+                lang="ts"
+                htmlKey="loader_ctx_ts"
+                code={`type LoaderCtx = {
+  params: Record<string, string>
+  search: URLSearchParams
+  location: { path: string; query: string; hash: string }
+}`}
+              />
+            </section>
+
+            <section id="execution">
+              <h2>Execution model</h2>
+              <p class="mt-3">
+                ルートが prefix マッチ（例: <span class="font-mono text-zinc-200">/dashboard/*</span>）している場合、
+                <strong>親 → 子の順</strong>で複数 loader が実行されます。
+                これは Layout + Leaf の考え方に近いです。
+              </p>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+                <div class="font-semibold text-zinc-200">Rules of thumb</div>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                  <li>I/O は <span class="font-mono text-zinc-200">Promise.all</span> で並列化</li>
+                  <li>例外は 500（=バグ）として扱う</li>
+                  <li>404 は <span class="font-mono text-zinc-200">notFound()</span> を返す/投げる</li>
                 </ul>
               </div>
             </section>
 
-            <section id="patterns">
-              <h2>Patterns</h2>
-              
-              <h3 class="mt-6 text-lg font-semibold text-zinc-100">Parallel Fetching</h3>
-              <p class="mt-2">
-                複数のデータソースが必要な場合は、<span class="font-mono text-zinc-200">Promise.all</span> を使って並列に取得します。
-                Waterfall（直列実行）を防ぐことで、レスポンスタイムを短縮できます。
+            <section id="cache">
+              <h2>SSR cache priming (important)</h2>
+              <p class="mt-3">
+                SSR のとき、vitrio-start は先に loader を実行して結果をキャッシュに入れます。
+                これで Vitrio の <span class="font-mono text-zinc-200">Route()</span> が SSR 中に loader を二重実行しない。
               </p>
               <CodeBlock
-                title="Parallel Fetching Example"
+                title="SSR primes loader cache (concept)"
                 lang="ts"
-                htmlKey="loader_example_ts"
-                code={`loader: async ({ params, env }) => {
-  // Parallel fetch: avoid waterfall!
-  const [user, posts] = await Promise.all([
-    fetchUser(params.id),
-    fetchPosts(params.id),
-  ])
-  
-  return { user, posts }
+                htmlKey="loader_cache_prime_ts"
+                code={`// Pseudocode
+const key = makeRouteCacheKey(route.path, ctx)
+cacheMap.set(key, { status: 'fulfilled', value: out })
+// later: Route() reads from the cache instead of calling loader again`}
+              />
+            </section>
+
+            <section id="redirect-notfound">
+              <h2><span class="font-mono text-zinc-200">redirect()</span> / <span class="font-mono text-zinc-200">notFound()</span></h2>
+              <p class="mt-3">
+                loader は “HTTP を返す” のではなく、基本は data を返します。
+                ただし「この GET は別 URL を見せたい」や「存在しない」は例外なので、
+                <span class="font-mono text-zinc-200">redirect()</span> / <span class="font-mono text-zinc-200">notFound()</span> を使います。
+              </p>
+              <CodeBlock
+                title="Redirect from loader"
+                lang="ts"
+                htmlKey="loader_redirect_ts"
+                code={`import { redirect, notFound } from './server/response'
+
+loader: async ({ params, search }) => {
+  if (!params.slug) return notFound()
+  if (search.get('legacy') === '1') {
+    return redirect('/posts/' + params.slug, 302)
+  }
+  return { ok: true }
 }`}
               />
-
-              <h3 class="mt-8 text-lg font-semibold text-zinc-100">Direct DB Access</h3>
-              <p class="mt-2">
-                Loader はサーバーサイドで実行されるため、D1 や KV などのデータベースに直接アクセスできます。
-                API エンドポイントを別途作成する必要はありません。
+              <p class="mt-3 text-sm text-zinc-400">
+                例外として <span class="font-mono text-zinc-200">throw redirect(...)</span> でも同じ扱いになります。
               </p>
             </section>
 
-            <section id="error-handling">
-              <h2>Error Handling</h2>
+            <section id="serialization">
+              <h2>Serialization rules</h2>
               <p class="mt-3">
-                Loader 内で例外がスローされた場合、フレームワークは 500 エラーとして扱います。
-                404 Not Found などを返したい場合は、明示的にデータを返すか、Response オブジェクトを投げます。
+                loader の戻り値は “JSON-ish” を推奨します。
+                class instance / Date / Map などをそのまま返すと、将来の dehydrations で事故りやすい。
               </p>
-              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
-                <p>
-                  推奨パターン: <span class="font-mono text-zinc-200">{`{ notFound: true }`}</span> のようなフラグをデータに含め、
-                  コンポーネント側で条件分岐して 404 UI を表示します（SSR時にステータスコード 404 を出力する機能と組み合わせます）。
-                </p>
-              </div>
+            </section>
+
+            <section id="patterns">
+              <h2>Common patterns</h2>
+              <CodeBlock
+                title="Parallel I/O"
+                lang="ts"
+                htmlKey="loader_parallel_ts"
+                code={`loader: async ({ params, request, env }) => {
+  const [post, user] = await Promise.all([
+    getPost(env.DB, params.slug),
+    getViewer(request),
+  ])
+
+  if (!post) return { notFound: true }
+  return { post, user }
+}`}
+              />
             </section>
           </DocArticle>
         </RefChrome>
@@ -939,102 +1048,197 @@ export const routes = [
     path: '/reference/actions',
     client: true,
     loader: () => ({}),
+    action: async (_ctx, fd) => {
+      // Demo: return a payload that becomes flash.newCount
+      if (fd.get('intent') === 'inc') return { newCount: Math.floor(Math.random() * 1000) }
+      return { ok: true }
+    },
     component: ({ csrfToken }) => {
       const toc: TocLink[] = [
-        { href: '#overview', label: 'Overview' },
-        { href: '#flow', label: 'Request flow (PRG)' },
-        { href: '#validation', label: 'Validation' },
-        { href: '#redirects', label: 'Redirects' },
+        { href: '#overview', label: 'Overview (PRG)' },
+        { href: '#signature', label: 'Signature' },
+        { href: '#result', label: 'Return values' },
+        { href: '#csrf', label: 'CSRF integration' },
+        { href: '#flash', label: 'Flash + redirect back' },
+        { href: '#explicit-redirect', label: 'Explicit redirects' },
+        { href: '#patterns', label: 'Patterns' },
+        { href: '#demo', label: 'Demo form' },
       ]
 
       return (
         <RefChrome
           path="/reference/actions"
           title="Actions (PRG)"
-          subtitle="POSTは副作用、結果は303でGETに戻す。HTTPで勝つ。"
+          subtitle="React の onSubmit を “HTTP に戻す”。POST は副作用、結果は 303 で GET に戻す。"
           toc={toc}
         >
           <DocArticle>
             <section id="overview">
-              <h2>Overview</h2>
+              <h2>Overview (PRG)</h2>
               <p class="mt-3">
-                <span class="font-mono text-zinc-200">action</span> は、フォーム送信（POSTリクエスト）を処理するサーバーサイド関数です。
-                <span class="font-mono text-zinc-200">routes.tsx</span> に定義し、データの作成・更新・削除（Mutation）を行います。
-                クライアントサイドJSなしで動作し、Progressive Enhancement の基盤となります。
-              </p>
-            </section>
-
-            <section id="flow">
-              <h2>Request flow (PRG)</h2>
-              <p class="mt-3">
-                Post-Redirect-Get (PRG) パターンを採用しています。
-                Action は HTML を返さず、必ずリダイレクト（またはリダイレクト指示）を返します。
+                <span class="font-mono text-zinc-200">action</span> は POST 専用。
+                HTML フォームで送られた <span class="font-mono text-zinc-200">FormData</span> を受け取り、副作用（DB更新など）を起こします。
+                そして <strong>POST → 303 → GET</strong> で “画面” に戻る。
               </p>
               <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div class="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
-                  <div class="text-sm font-semibold text-indigo-300">1. POST (Action)</div>
+                  <div class="text-sm font-semibold text-indigo-300">Why PRG?</div>
                   <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
-                    <li>CSRF トークンの検証（自動）</li>
-                    <li>Action 関数の実行</li>
-                    <li>結果（成功/失敗）を Flash Cookie に保存</li>
-                    <li><strong>303 See Other</strong> で GET へリダイレクト</li>
+                    <li>リロードで二重送信しない</li>
+                    <li>戻る/進むが素直</li>
+                    <li>URL と表示が一致する</li>
                   </ul>
                 </div>
                 <div class="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
-                  <div class="text-sm font-semibold text-emerald-300">2. GET (Render)</div>
+                  <div class="text-sm font-semibold text-emerald-300">What you write</div>
                   <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
-                    <li>リダイレクト先を表示</li>
-                    <li>Flash Cookie を読み取り、UI に反映（Toastなど）</li>
-                    <li>Flash Cookie を削除（1回きり）</li>
+                    <li>validate</li>
+                    <li>mutate</li>
+                    <li>redirect (or return plain object)</li>
                   </ul>
                 </div>
               </div>
             </section>
 
-            <section id="validation">
-              <h2>Validation</h2>
+            <section id="signature">
+              <h2>Signature</h2>
               <p class="mt-3">
-                <span class="font-mono text-zinc-200">FormData</span> を受け取り、<span class="font-mono text-zinc-200">zod</span> などでバリデーションを行います。
-                失敗した場合は、エラーメッセージを含むオブジェクトを返し（Flash経由で伝達）、元のページにリダイレクトします。
+                action は <span class="font-mono text-zinc-200">(ctx, formData)</span> を受け取ります。
+                <span class="font-mono text-zinc-200">formData</span> は framework が先にパースして渡します。
               </p>
               <CodeBlock
-                title="Action Validation Example"
+                title="Action signature"
                 lang="ts"
-                htmlKey="action_ts"
-                code={`import { redirect } from './server/response'
+                htmlKey="action_signature_ts"
+                code={`action: async (ctx: LoaderCtx, formData: FormData) => {
+  // ctx.params / ctx.search / ctx.location
+  const intent = formData.get('intent')
+  return { ok: true }
+}`}
+              />
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
+                <div class="text-sm font-semibold text-zinc-100">CSRF hidden input</div>
+                <p class="mt-2 text-sm text-zinc-400">
+                  <span class="font-mono text-zinc-200">csrfToken</span> は SSR で props として渡されます。
+                  これを <span class="font-mono text-zinc-200">_csrf</span> に入れるだけ。
+                </p>
+                <CodeBlock title="form" lang="html" htmlKey="form_html" code={`<form method="post">
+  <input type="hidden" name="_csrf" value={csrfToken} />
+  ...
+</form>`} />
+              </div>
+            </section>
 
-export const action = async (ctx, formData) => {
-  const email = formData.get('email')
-  
-  // 1. Validation (Manual or Zod)
-  if (!email || typeof email !== 'string' || !email.includes('@')) {
-    // Return error object -> saves to Flash -> redirects back
-    return { ok: false, error: 'Invalid email address' }
-  }
+            <section id="result">
+              <h2>Return values</h2>
+              <p class="mt-3">
+                action は 3 通りの返し方があります（=フレームワークが扱える “プロトコル”）。
+              </p>
+              <CodeBlock
+                title="ActionResult"
+                lang="ts"
+                htmlKey="action_result_ts"
+                code={`// 1) redirect(to): explicit redirect (no automatic flash)
+return redirect('/posts', 303)
 
-  // 2. Mutation
-  await ctx.env.DB.prepare('INSERT INTO users...').run()
+// 2) notFound(): treated as failure (flash ok=false), then redirect back
+return notFound()
 
-  // 3. Success Redirect
-  return redirect('/thanks', { status: 303 })
+// 3) plain object: treated as success (flash ok=true), then redirect back
+return { ok: true, newCount: 123 }`}
+              />
+            </section>
+
+            <section id="csrf">
+              <h2>CSRF integration</h2>
+              <p class="mt-3">
+                action 実行前に CSRF を検証します。
+                失敗した場合は action 自体が実行されず、失敗 flash をセットして 303 で同じページに戻ります。
+              </p>
+              <CodeBlock
+                title="CSRF verify (double submit cookie)"
+                lang="ts"
+                htmlKey="csrf_verify_ts"
+                code={`function verifyCsrf(c: Context, formData: FormData): boolean {
+  const cookieTok = getCookie(c, 'vitrio_csrf')
+  const bodyTok = String(formData.get('_csrf') ?? '')
+  return !!cookieTok && cookieTok === bodyTok
 }`}
               />
             </section>
 
-            <section id="redirects">
-              <h2>Redirects</h2>
+            <section id="flash">
+              <h2>Flash + redirect back</h2>
               <p class="mt-3">
-                <span class="font-mono text-zinc-200">redirect(url, status)</span> ヘルパーを使用します。
-                デフォルトのステータスコードは 302 ですが、PRG パターンでは **303 See Other** を推奨します（POST後のリロード警告を防ぐため）。
+                vitrio-start の default は「成功/失敗を 1-shot cookie に入れて、同じ URL に 303 で戻す」です。
+                React でいうと “navigate 後に toast を出す” の最小機構。
               </p>
-              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-400">
-                <li>
-                  <span class="font-mono text-zinc-200">redirect('/foo', 303)</span>: 指定パスへ遷移。
-                </li>
-                <li>
-                  <span class="font-mono text-zinc-200">return {`{ ... }`}</span> (オブジェクト返却): 現在のパスへ 303 リダイレクトし、返却値を Flash データとして渡す。
-                </li>
-              </ul>
+              <CodeBlock
+                title="Framework POST flow (simplified)"
+                lang="ts"
+                htmlKey="framework_post_ts"
+                code={`if (method === 'POST') {
+  const r = await runMatchedAction(c, routes, path, url)
+
+  if (r.kind === 'redirect') return c.redirect(r.to, r.status)
+
+  setFlash(c, { ok: r.kind === 'ok', at: Date.now() })
+  return c.redirect(path, 303)
+}`}
+              />
+            </section>
+
+            <section id="explicit-redirect">
+              <h2>Explicit redirects</h2>
+              <p class="mt-3">
+                「成功したら別ページへ」みたいなケースは、action から <span class="font-mono text-zinc-200">redirect()</span> を返します。
+                これは “PRG の Redirect” を action が明示するパターン。
+              </p>
+              <CodeBlock
+                title="Explicit redirect"
+                lang="ts"
+                htmlKey="action_prg_ts"
+                code={`import { redirect } from './server/response'
+
+action: async ({ request, env }) => {
+  const fd = await request.formData()
+  const email = fd.get('email')
+
+  if (typeof email !== 'string' || !email.includes('@')) {
+    return { ok: false, error: 'invalid email' }
+  }
+
+  await env.DB.prepare('INSERT INTO users(email) VALUES (?)').bind(email).run()
+  return redirect('/thanks', 303)
+}`}
+              />
+            </section>
+
+            <section id="patterns">
+              <h2>Patterns</h2>
+              <p class="mt-3">
+                <strong>Intent pattern</strong>（同じフォームで複数ボタン）などは <span class="font-mono text-zinc-200">formData.get('intent')</span> で分岐します。
+                JS を書かなくても十分戦える。
+              </p>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+                <div class="font-semibold text-zinc-200">Tip</div>
+                返す plain object に <span class="font-mono text-zinc-200">newCount</span> などを入れると、
+                このサイトのフレームワーク実装では flash に同梱されます。
+              </div>
+            </section>
+
+            <section id="demo">
+              <h2>Demo form</h2>
+              <p class="mt-3">このページにも CSRF hidden input が入っている。POST すると 303 で戻って flash が出る。</p>
+              <form method="post" class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                <input type="hidden" name="_csrf" value={csrfToken} />
+                <div class="flex flex-wrap items-center gap-3">
+                  <button class="rounded-xl bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-white" name="intent" value="inc">
+                    Submit (inc)
+                  </button>
+                  <div class="text-sm text-zinc-400">Try reloading after submit: no “resubmit form” warning.</div>
+                </div>
+              </form>
             </section>
           </DocArticle>
         </RefChrome>
@@ -1049,76 +1253,109 @@ export const action = async (ctx, formData) => {
     loader: () => ({}),
     component: () => {
       const toc: TocLink[] = [
-        { href: '#csrf', label: 'CSRF' },
-        { href: '#flash', label: 'Flash' },
+        { href: '#csrf', label: 'CSRF (double submit cookie)' },
+        { href: '#csrf-usage', label: 'How to use in forms' },
+        { href: '#flash', label: 'Flash cookie' },
+        { href: '#flash-read', label: 'Reading flash on client' },
+        { href: '#cookie-flags', label: 'Cookie flags' },
       ]
 
       return (
         <RefChrome
           path="/reference/csrf-flash"
           title="CSRF / Flash"
-          subtitle="cookie token + hidden input / one-shot flash cookie。"
+          subtitle="cookie token + hidden input / one-shot flash cookie。Workers でも state-less に成立する最小セット。"
           toc={toc}
         >
           <DocArticle>
             <section id="csrf">
-              <h2>CSRF Protection</h2>
+              <h2>CSRF (double submit cookie)</h2>
               <p class="mt-3">
-                CSRF (Cross-Site Request Forgery) 対策は、Web フレームワークにとって必須の機能です。
-                vitrio-start は、<span class="font-mono text-zinc-200">Double Submit Cookie</span> パターンを使用してこれを実装しています。
+                vitrio-start は <strong>Double Submit Cookie</strong> パターンです。
+                セッションストアを持たずに成立するので、Workers と相性が良い。
               </p>
-              
-              <h3 class="mt-6 text-lg font-semibold text-zinc-100">How it works</h3>
-              <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-zinc-400">
-                <li>
-                  サーバーは <span class="font-mono text-zinc-200">vitrio_csrf</span> クッキー（HttpOnly ではない）を発行します。
-                </li>
-                <li>
-                  フォーム送信時に、隠しフィールド <span class="font-mono text-zinc-200">_csrf</span> としてトークンを送信します。
-                </li>
-                <li>
-                  サーバー側で、クッキーの値とフォームの値が一致することを確認します。
-                </li>
-              </ul>
-
-              <h3 class="mt-6 text-lg font-semibold text-zinc-100">Usage</h3>
-              <p class="mt-2 text-sm text-zinc-300">
-                <span class="font-mono text-zinc-200">csrfToken</span> プロップがコンポーネントに自動的に渡されます。これを隠し入力フィールドにセットするだけです。
-              </p>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+                <ol class="list-decimal space-y-2 pl-5">
+                  <li>GET で CSRF cookie（<span class="font-mono text-zinc-200">vitrio_csrf</span>）を発行</li>
+                  <li>SSR で <span class="font-mono text-zinc-200">csrfToken</span> を props に渡す</li>
+                  <li>フォームが hidden input <span class="font-mono text-zinc-200">_csrf</span> として送る</li>
+                  <li>POST で cookie と body が一致することを確認</li>
+                </ol>
+              </div>
               <CodeBlock
-                title="CSRF Token Usage"
-                lang="html"
-                htmlKey="form_html"
-                code={`<form method="post">
-  <input type="hidden" name="_csrf" value={csrfToken} />
-  ...
-</form>`}
+                title="Verify logic (same as framework)"
+                lang="ts"
+                htmlKey="csrf_verify_ts"
+                code={`const cookieTok = getCookie(c, 'vitrio_csrf')
+const bodyTok = String(formData.get('_csrf') ?? '')
+const ok = !!cookieTok && cookieTok === bodyTok`}
               />
             </section>
 
-            <section id="flash">
-              <h2>Flash Messages</h2>
+            <section id="csrf-usage">
+              <h2>How to use in forms</h2>
               <p class="mt-3">
-                Flash Message は、リダイレクト後の「1回だけ表示される」メッセージです（例: "Saved successfully!"）。
-                サーバーレス環境（ステートレス）でも動作するように、クッキーベースで実装されています。
+                やることは 1 行。
+                SSR component に渡される <span class="font-mono text-zinc-200">csrfToken</span> を hidden input に入れるだけ。
               </p>
+              <CodeBlock title="Form" lang="html" htmlKey="form_html" code={`<form method="post">
+  <input type="hidden" name="_csrf" value={csrfToken} />
+  ...
+</form>`} />
+            </section>
 
-              <h3 class="mt-6 text-lg font-semibold text-zinc-100">Mechanism</h3>
-              <div class="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm">
-                <ol class="list-decimal space-y-2 pl-5 text-zinc-300">
+            <section id="flash">
+              <h2>Flash cookie</h2>
+              <p class="mt-3">
+                flash は「次の GET で 1 回だけ読める」データです。
+                action の結果（成功/失敗や軽い payload）を cookie に入れて、GET で読む。
+              </p>
+              <CodeBlock
+                title="Flash write/read (concept)"
+                lang="ts"
+                htmlKey="flash_readclear_ts"
+                code={`// Write (on POST)
+setCookie(c, 'vitrio_flash', JSON.stringify({ ok: true, at: Date.now() }), {
+  path: '/', httpOnly: true, sameSite: 'Lax'
+})
+
+// Read + clear (on GET)
+const raw = getCookie(c, 'vitrio_flash')
+setCookie(c, 'vitrio_flash', '', { path: '/', maxAge: 0 })`}
+              />
+            </section>
+
+            <section id="flash-read">
+              <h2>Reading flash on client</h2>
+              <p class="mt-3">
+                SSR が <span class="font-mono text-zinc-200">globalThis.__VITRIO_FLASH__</span> に埋め込むと、
+                route を <span class="font-mono">client: true</span> にしたページで toast 表示などが可能です。
+              </p>
+              <CodeBlock
+                title="Client-side read"
+                lang="ts"
+                htmlKey="flash_client_ts"
+                code={`// in client entry
+const flash = (globalThis as any).__VITRIO_FLASH__
+if (flash?.ok) {
+  console.log('success at', flash.at)
+}`}
+              />
+            </section>
+
+            <section id="cookie-flags">
+              <h2>Cookie flags</h2>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+                <ul class="list-disc space-y-2 pl-5">
                   <li>
-                    Action が結果を返す（例: <span class="font-mono text-zinc-200">{`{ ok: true }`}</span>）。
+                    <span class="font-mono text-zinc-200">vitrio_csrf</span>: <strong>not HttpOnly</strong>
+                    （SSR でフォームに埋めるため）。ただし <span class="font-mono">SameSite=Lax</span>。
                   </li>
                   <li>
-                    フレームワークがそれを JSON シリアライズし、<span class="font-mono text-zinc-200">vitrio_flash</span> クッキーにセットしてリダイレクト。
+                    <span class="font-mono text-zinc-200">vitrio_flash</span>: <strong>HttpOnly</strong>
+                    （JS から読ませない）。GET で即削除。
                   </li>
-                  <li>
-                    次の GET リクエストで、フレームワークがクッキーを読み取り、<span class="font-mono text-zinc-200">Set-Cookie: vitrio_flash=; Max-Age=0</span> で即座に消去。
-                  </li>
-                  <li>
-                    読み取ったデータはコンポーネントの <span class="font-mono text-zinc-200">props.flash</span> に渡される（現状の実装ではまだ明示的なprop渡しが必要ですが、仕組みは整っています）。
-                  </li>
-                </ol>
+                </ul>
               </div>
             </section>
           </DocArticle>
@@ -1134,99 +1371,112 @@ export const action = async (ctx, formData) => {
     loader: () => ({}),
     component: () => {
       const toc: TocLink[] = [
-        { href: '#concept', label: 'Concept' },
+        { href: '#concept', label: 'Concept (route-level JS)' },
+        { href: '#what-loads', label: 'What gets loaded' },
         { href: '#progressive', label: 'Progressive Enhancement' },
-        { href: '#implementation', label: 'Implementation' },
+        { href: '#islands', label: 'Islands (*.client.tsx)' },
+        { href: '#autogen', label: 'Auto-generated registry' },
       ]
 
       return (
-        <RefChrome path="/reference/use-client" title="“use client”" subtitle="必要なページだけ最小JSを注入する。" toc={toc}>
+        <RefChrome path="/reference/use-client" title="“use client”" subtitle="必要なページだけ JS。さらに island 単位なら TSX をそのまま mount。" toc={toc}>
           <DocArticle>
             <section id="concept">
-              <h2>Concept</h2>
+              <h2>Concept (route-level JS)</h2>
               <p class="mt-3">
-                vitrio-start のデフォルトは <strong>No Client JS</strong> (SSR HTML only) です。
-                しかし、インタラクティブな機能（このページの目次ハイライトやコピーボタンなど）には JS が必要です。
+                デフォルトは SSR のみ（No client JS）。
+                でも UI をちょっとだけ便利にしたいページ（目次ハイライト、Copy ボタン、toast など）もある。
               </p>
-              <p class="mt-3 text-sm text-zinc-300">
-                <span class="font-mono text-zinc-200">client: true</span> をルート定義に追加すると、
-                そのページ専用のクライアントエントリーポイント (<span class="font-mono text-zinc-200">src/client/entry.tsx</span>) が読み込まれます。
+              <p class="mt-3">
+                vitrio-start はルートに <span class="font-mono text-zinc-200">client: true</span> を付けると、
+                そのページにだけクライアントエントリ（例: <span class="font-mono text-zinc-200">/assets/entry.js</span>）を読み込みます。
               </p>
+              <CodeBlock
+                title="client: true"
+                lang="ts"
+                htmlKey="client_true_ts"
+                code={`defineRoute({
+  path: '/reference/routing',
+  client: true,
+  loader: () => ({}),
+  component: () => <Page />,
+})`}
+              />
             </section>
 
-            <section id="islands">
-              <h2>Islands / Feature Detection</h2>
+            <section id="what-loads">
+              <h2>What gets loaded</h2>
               <p class="mt-3">
-                React Server Components のような「コンポーネント単位の境界線」はありません。
-                代わりに、ページ全体に対して「必要な機能（Islands）」を後付けで有効化するアプローチをとります。
+                client が有効なページでは、SSR の HTML に加えて 1 本だけ script を足します。
+                HTML 自体は常に完全に表示できる（JS は “後付け”）。
               </p>
-              
-              <div class="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
-                <h3 class="text-sm font-semibold text-emerald-300">Why Feature Detection?</h3>
-                <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
-                  URLやコンポーネントツリー構造に依存せず、<strong>「HTML内にその要素があるか？」</strong> だけで判断します。
-                  これにより、サーバー側の実装（どのコンポーネントを使ったか）とクライアント側の実装（どのJSをロードするか）を疎結合に保てます。
-                </p>
-              </div>
-              
-              <div class="mt-4 rounded-2xl border border-emerald-800/40 bg-emerald-950/10 p-4">
-                <h3 class="text-sm font-semibold text-emerald-300">Now: TSX Islands (use-client-ish)</h3>
-                <p class="mt-2 text-sm text-zinc-300 leading-relaxed">
-                  vitrio-start は <span class="font-mono text-zinc-200">data-island</span> マーカー + registry で Islands をサポートします。
-                  つまり「Vanilla JS を手書き」ではなく、<strong>普通に Vitrio で書いた TSX コンポーネント</strong> をそのまま client 側で mount できます。
-                </p>
-                <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
-                  さらに、registry は <span class="font-mono text-zinc-200">src/**/**/*.client.tsx</span> をスキャンして自動生成できます。
-                </p>
-              </div>
-
-              <div class="mt-6 grid gap-6 sm:grid-cols-2">
-                <div class="min-w-0">
-                  <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Server (Call-site)</div>
-                  <CodeBlock
-                    title="routes.tsx (SSR)"
-                    lang="ts"
-                    htmlKey="island_server_ts"
-                    code={`// routes.tsx (SSR)
-import { island } from './server/island'
-import { Counter } from './components/Counter'
-
-export function Page() {
-  return (
-    <div>
-      {island(Counter, { initial: 1 }, { name: 'Counter' })}
-    </div>
-  )
-}`}
-                  />
-                </div>
-                <div class="min-w-0">
-                  <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Client (Auto-generated registry)</div>
-                  <CodeBlock
-                    title="client/entry.tsx"
-                    lang="ts"
-                    htmlKey="island_client_ts"
-                    code={`// client/entry.tsx
-import { hydrateIslands } from './islands'
-
-async function main() {
-  // generated by scripts/gen-islands.ts
-  const { islands } = await import('./islands.gen')
-  hydrateIslands(islands)
-}
-
-main()`}
-                  />
-                </div>
-              </div>
+              <CodeBlock
+                title="SSR adds entry script"
+                lang="ts"
+                htmlKey="enable_client_ts"
+                code={`const enableClient = !!bestMatch.client
+return html(
+  '<body>...'+(enableClient ? '<script src="/assets/entry.js"></script>' : '')+'</body>'
+)`}
+              />
             </section>
 
             <section id="progressive">
               <h2>Progressive Enhancement</h2>
               <p class="mt-3">
-                このアーキテクチャにより、JSが無効な環境やロード前でもコンテンツは完全に閲覧可能です。
-                JSはあくまで「体験を向上させる（Enhance）」ためのものであり、レンダリングそのものには関与しません。
+                JS が遅い/無効でもページは動く。
+                その上で JS がある時だけ「コピーできる」「スクロール位置で目次が光る」などを足す。
+                React の “render is pure, effects enhance” みたいな感覚に近い。
               </p>
+            </section>
+
+            <section id="islands">
+              <h2>Islands (*.client.tsx)</h2>
+              <p class="mt-3">
+                ページ全体を hydrate するのではなく「必要な部分だけ TSX を mount」できます。
+                vitrio-start は <span class="font-mono text-zinc-200">src/**/**/*.client.tsx</span> を island として扱う設計。
+              </p>
+              <CodeBlock
+                title="Server call-site (island helper)"
+                lang="ts"
+                htmlKey="island_server_ts"
+                code={`import { island } from './server/island'
+import Counter from './components/Counter.client'
+
+export function Page() {
+  return <div>{island(Counter, { initial: 1 })}</div>
+}`}
+              />
+            </section>
+
+            <section id="autogen">
+              <h2>Auto-generated registry</h2>
+              <p class="mt-3">
+                island を手で登録するのは面倒なので、ビルド時に registry を自動生成します。
+                いまの vitrio-start は <span class="font-mono text-zinc-200">src/**/**/*.client.tsx</span> をスキャンして
+                <span class="font-mono text-zinc-200">islands.gen.ts</span> を吐く方式。
+              </p>
+              <CodeBlock
+                title="src/client/islands.gen.ts (example output)"
+                lang="ts"
+                htmlKey="islands_gen_ts"
+                code={`// AUTO-GENERATED
+import Counter from '../components/Counter.client'
+import SearchBox from '../routes/search/SearchBox.client'
+
+export const islands = {
+  Counter,
+  SearchBox,
+} as const`}
+              />
+              <CodeBlock title="client entry" lang="ts" htmlKey="island_client_ts" code={`import { hydrateIslands } from './islands'
+
+async function main() {
+  const { islands } = await import('./islands.gen')
+  hydrateIslands(islands)
+}
+
+main()`} />
             </section>
           </DocArticle>
         </RefChrome>
@@ -1241,30 +1491,27 @@ main()`}
     loader: () => ({}),
     component: () => {
       const toc: TocLink[] = [
-        { href: '#assets', label: 'Assets' },
-        { href: '#env', label: 'Env Injection' },
-        { href: '#wrangler', label: 'Wrangler' },
+        { href: '#assets-binding', label: 'Assets binding' },
+        { href: '#worker-entry', label: 'Worker entry' },
+        { href: '#run-worker-first', label: 'run_worker_first' },
+        { href: '#env', label: 'Env bindings' },
+        { href: '#wrangler', label: 'Wrangler deploy' },
       ]
 
       return (
         <RefChrome
           path="/reference/workers-deploy"
           title="Workers deployment"
-          subtitle="assets binding / run_worker_first / envの流し方。"
+          subtitle="静的アセットは CDN、HTML だけ Worker。assets binding / wrangler / env のつなぎ方。"
           toc={toc}
         >
           <DocArticle>
-            <section id="assets">
-              <h2>Static Assets & Cost Optimization</h2>
+            <section id="assets-binding">
+              <h2>Assets binding</h2>
               <p class="mt-3">
-                Cloudflare Workers で SSR を行う場合、静的アセット（画像、CSS、JS）のリクエストで Worker を起動したくありません。
-                <span class="font-mono text-zinc-200">run_worker_first = false</span> を設定することで、Worker の前に Assets Binding（CDN）がリクエストを処理します。
+                vitrio-start の基本戦略は「静的アセット（CSS/JS/画像）は Assets CDN、HTML は Worker SSR」です。
+                これでコストとパフォーマンスが読みやすくなる。
               </p>
-              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
-                <p>
-                  これにより、静的ファイルへのアクセスは Worker 呼び出しコストが発生せず、高速かつ安価（または無料）になります。
-                </p>
-              </div>
               <CodeBlock
                 title="wrangler.toml"
                 lang="toml"
@@ -1272,31 +1519,58 @@ main()`}
                 code={`[assets]
 directory = "dist/client"
 binding = "ASSETS"
-run_worker_first = false # Important!`}
+run_worker_first = false`}
               />
             </section>
 
-            <section id="env">
-              <h2>Env Injection (Global Scope)</h2>
+            <section id="worker-entry">
+              <h2>Worker entry</h2>
               <p class="mt-3">
-                一般的な Node.js フレームワークと異なり、Workers では環境変数（Env）はリクエストごとに渡されます。
-                これをコンポーネントツリーの深部までバケツリレーするのは苦痛です。
-              </p>
-              <p class="mt-3">
-                vitrio-start では、リクエスト処理の冒頭で Env をグローバルスコープに注入するパターンを推奨しています。
-                これは Workers 環境特有の割り切り（Pragmatism）ですが、開発体験を劇的に改善します。
+                Worker は 2 つの責務を持ちます。
+                <strong>(1) assets を binding から返す</strong>、<strong>(2) それ以外は SSR</strong>。
               </p>
               <CodeBlock
-                title="src/server/workers.ts"
+                title="src/server/workers.ts (pattern)"
                 lang="ts"
-                htmlKey="worker_env_ts"
-                code={`// src/server/workers.ts
-export default {
+                htmlKey="worker_entry_ts"
+                code={`import { Hono } from 'hono'
+import { handleDocumentRequest } from './framework'
+
+type Env = { ASSETS: { fetch(req: Request): Promise<Response> } }
+const app = new Hono<{ Bindings: Env }>()
+
+app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
+app.all('*', (c) => handleDocumentRequest(c, compiledRoutes, {
+  title: 'vitrio-start',
+  entrySrc: '/assets/entry.js',
+}))
+
+export default { fetch: (req: Request, env: Env, ctx: any) => app.fetch(req, env, ctx) }`}
+              />
+            </section>
+
+            <section id="run-worker-first">
+              <h2><span class="font-mono text-zinc-200">run_worker_first = false</span></h2>
+              <p class="mt-3">
+                これが重要。
+                <span class="font-mono text-zinc-200">false</span> にすると <span class="font-mono text-zinc-200">/assets/*</span> は CDN が先に捌くので、
+                アセット配信で Worker を起動しません。
+              </p>
+              <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-zinc-400">
+                Workers の課金やパフォーマンスを “HTML のみ” に寄せられるのがメリット。
+              </div>
+            </section>
+
+            <section id="env">
+              <h2>Env bindings</h2>
+              <p class="mt-3">
+                Workers の env（D1/KV/R2 など）は request ごとに渡されます。
+                SSR フレームワークでは “深い場所まで prop drilling” しがちなので、
+                vitrio-start では現実解として global に inject するパターンを用意しています。
+              </p>
+              <CodeBlock title="Inject env" lang="ts" htmlKey="worker_env_ts" code={`export default {
   fetch(request: Request, env: Env, ctx: any) {
-    // Inject env into global scope
     ;(globalThis as any).__VITRIO_ENV = env
-    
-    // Pass to app
     return app.fetch(request, env, ctx)
   },
 }`}
@@ -1304,11 +1578,13 @@ export default {
             </section>
 
             <section id="wrangler">
-              <h2>Wrangler Configuration</h2>
+              <h2>Wrangler deploy</h2>
               <p class="mt-3">
-                CI/CD 環境でデプロイする場合、アカウントIDの自動検出が失敗することがあります。
-                <span class="font-mono text-zinc-200">wrangler.toml</span> に <span class="font-mono text-zinc-200">account_id</span> を明記することをお勧めします。
+                ビルド → deploy の順です。
+                CI では API token を使い、<span class="font-mono text-zinc-200">account_id</span> を <span class="font-mono">wrangler.toml</span> に入れておくと安定します。
               </p>
+              <CodeBlock title="Commands" lang="bash" htmlKey="commands_bash" code={`bun run build
+bunx wrangler deploy`} />
             </section>
           </DocArticle>
         </RefChrome>

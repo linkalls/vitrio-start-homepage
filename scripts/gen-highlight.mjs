@@ -239,7 +239,193 @@ async function main() {
   hydrateIslands(islands)
 }
 
-main()`
+main()`,
+  },
+  {
+    key: 'route_def_ts',
+    lang: 'ts',
+    code: `type RouteDef = {
+  path: string
+  client?: boolean
+  loader?: (ctx: LoaderCtx) => unknown | Promise<unknown>
+  action?: (ctx: LoaderCtx, formData: FormData) => unknown | Promise<unknown>
+  component: (props: {
+    data: unknown
+    action: ActionApi<FormData, unknown>
+    csrfToken: string
+  }) => unknown
+}`,
+  },
+  {
+    key: 'routing_merge_params_ts',
+    lang: 'ts',
+    code: `// matched: /orgs/:orgId/*  and  /orgs/:orgId/repos/:repoId
+// ctx.params becomes: { orgId: 'acme', repoId: 'vitrio' }
+loader: ({ params }) => {
+  params.orgId
+  params.repoId
+}`,
+  },
+  {
+    key: 'routing_prefix_ts',
+    lang: 'ts',
+    code: `export const routes = [
+  defineRoute({
+    path: '/dashboard/*',
+    loader: async ({ env }) => ({ viewer: await getViewer(env) }),
+    component: ({ data }) => <DashboardLayout viewer={data.viewer} />,
+  }),
+  defineRoute({
+    path: '/dashboard/settings',
+    loader: async () => ({ tab: 'settings' }),
+    component: ({ data }) => <Settings tab={data.tab} />,
+  }),
+]`,
+  },
+  {
+    key: 'loader_to_component_ts',
+    lang: 'ts',
+    code: `import { notFound } from './server/response'
+
+defineRoute({
+  path: '/posts/:slug',
+  loader: async ({ params, env }) => {
+    const post = await env.DB.prepare('SELECT * FROM posts WHERE slug = ?')
+      .bind(params.slug)
+      .first()
+    if (!post) return notFound()
+    return { post }
+  },
+  component: ({ data }) => <PostPage post={data.post} />,
+})`,
+  },
+  {
+    key: 'loader_ctx_ts',
+    lang: 'ts',
+    code: `type LoaderCtx = {
+  params: Record<string, string>
+  search: URLSearchParams
+  location: { path: string; query: string; hash: string }
+}`,
+  },
+  {
+    key: 'loader_cache_prime_ts',
+    lang: 'ts',
+    code: `// Pseudocode
+const key = makeRouteCacheKey(route.path, ctx)
+cacheMap.set(key, { status: 'fulfilled', value: out })
+// later: Route() reads from the cache instead of calling loader again`,
+  },
+  {
+    key: 'loader_redirect_ts',
+    lang: 'ts',
+    code: `import { redirect, notFound } from './server/response'
+
+loader: async ({ params, search }) => {
+  if (!params.slug) return notFound()
+  if (search.get('legacy') === '1') {
+    return redirect('/posts/' + params.slug, 302)
+  }
+  return { ok: true }
+}`,
+  },
+  {
+    key: 'action_signature_ts',
+    lang: 'ts',
+    code: `action: async (ctx: LoaderCtx, formData: FormData) => {
+  // ctx.params / ctx.search / ctx.location
+  const intent = formData.get('intent')
+  return { ok: true }
+}`,
+  },
+  {
+    key: 'action_result_ts',
+    lang: 'ts',
+    code: `// 1) redirect(to): explicit redirect (no automatic flash)
+return redirect('/posts', 303)
+
+// 2) notFound(): treated as failure (flash ok=false), then redirect back
+return notFound()
+
+// 3) plain object: treated as success (flash ok=true), then redirect back
+return { ok: true, newCount: 123 }`,
+  },
+  {
+    key: 'csrf_verify_ts',
+    lang: 'ts',
+    code: `function verifyCsrf(c: Context, formData: FormData): boolean {
+  const cookieTok = getCookie(c, 'vitrio_csrf')
+  const bodyTok = String(formData.get('_csrf') ?? '')
+  return !!cookieTok && cookieTok === bodyTok
+}`,
+  },
+  {
+    key: 'flash_readclear_ts',
+    lang: 'ts',
+    code: `// Write (on POST)
+setCookie(c, 'vitrio_flash', JSON.stringify({ ok: true, at: Date.now() }), {
+  path: '/', httpOnly: true, sameSite: 'Lax'
+})
+
+// Read + clear (on GET)
+const raw = getCookie(c, 'vitrio_flash')
+setCookie(c, 'vitrio_flash', '', { path: '/', maxAge: 0 })`,
+  },
+  {
+    key: 'flash_client_ts',
+    lang: 'ts',
+    code: `// in client entry
+const flash = (globalThis as any).__VITRIO_FLASH__
+if (flash?.ok) {
+  console.log('success at', flash.at)
+}`,
+  },
+  {
+    key: 'client_true_ts',
+    lang: 'ts',
+    code: `defineRoute({
+  path: '/reference/routing',
+  client: true,
+  loader: () => ({}),
+  component: () => <Page />,
+})`,
+  },
+  {
+    key: 'enable_client_ts',
+    lang: 'ts',
+    code: `const enableClient = !!bestMatch.client
+return html(
+  '<body>...'+(enableClient ? '<script src="/assets/entry.js"></script>' : '')+'</body>'
+)`,
+  },
+  {
+    key: 'islands_gen_ts',
+    lang: 'ts',
+    code: `// AUTO-GENERATED
+import Counter from '../components/Counter.client'
+import SearchBox from '../routes/search/SearchBox.client'
+
+export const islands = {
+  Counter,
+  SearchBox,
+} as const`,
+  },
+  {
+    key: 'worker_entry_ts',
+    lang: 'ts',
+    code: `import { Hono } from 'hono'
+import { handleDocumentRequest } from './framework'
+
+type Env = { ASSETS: { fetch(req: Request): Promise<Response> } }
+const app = new Hono<{ Bindings: Env }>()
+
+app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
+app.all('*', (c) => handleDocumentRequest(c, compiledRoutes, {
+  title: 'vitrio-start',
+  entrySrc: '/assets/entry.js',
+}))
+
+export default { fetch: (req: Request, env: Env, ctx: any) => app.fetch(req, env, ctx) }`,
   },
 ]
 
