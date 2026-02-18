@@ -240,7 +240,7 @@ function DocArticle(p: { children: unknown }) {
   )
 }
 
-import { IslandMarker } from './server/islands'
+import { CopyButtonIsland } from './server/islands.gen'
 
 function CodeBlock(p: { title: string; lang: string; htmlKey?: keyof typeof HIGHLIGHT; code: string }) {
   const html = p.htmlKey ? HIGHLIGHT[p.htmlKey] : undefined
@@ -250,8 +250,7 @@ function CodeBlock(p: { title: string; lang: string; htmlKey?: keyof typeof HIGH
       <div class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-2">
         <div class="text-xs font-semibold text-zinc-300">{p.title}</div>
         <div class="flex items-center gap-3">
-          <IslandMarker
-            name="CopyButton"
+          <CopyButtonIsland
             props={{ text: p.code }}
             fallback={
               <button
