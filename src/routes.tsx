@@ -277,7 +277,7 @@ export const routes = [
             </div>
 
             <div class="mt-14 grid items-center gap-12 lg:grid-cols-2">
-              <div>
+              <div class="min-w-0">
                 <a
                   href="/reference"
                   class="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950/40 px-4 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-950"
@@ -287,13 +287,13 @@ export const routes = [
                   <span class="text-zinc-500">→</span>
                 </a>
 
-                <h1 class="mt-6 text-5xl font-semibold leading-[1.05] tracking-tight">
+                <h1 class="mt-6 text-3xl sm:text-4xl lg:text-5xl font-semibold leading-[1.1] tracking-tight">
                   <span class="text-indigo-200">vitrio-start</span>
                   <br />
                   SSR framework for Workers.
                 </h1>
 
-                <p class="mt-5 text-lg text-zinc-300">
+                <p class="mt-5 text-base sm:text-lg text-zinc-300">
                   vitrio-start は Cloudflare Workers 上で動く Bun-first / SSR-first のスターターです。
                   “server actions magic” を避けて、Plain HTTP + PRG（POST→Redirect→GET）でシンプルに作れます。
                 </p>
@@ -318,7 +318,7 @@ export const routes = [
                 </div>
               </div>
 
-              <div class="rounded-3xl border border-zinc-800 bg-zinc-900/30 p-6 shadow-sm">
+              <div class="min-w-0 rounded-3xl border border-zinc-800 bg-zinc-900/30 p-4 sm:p-6 shadow-sm">
                 <div class="flex items-center justify-between mb-4">
                   <div class="text-sm font-semibold text-indigo-300">Route Definition</div>
                   <div class="text-xs text-zinc-500">All-in-one file</div>
