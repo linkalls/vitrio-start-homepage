@@ -1,5 +1,5 @@
-import { render } from '@potetotown/vitrio/client'
-import { CopyButton } from './features/copy'
+import { hydrateIslands } from './islands'
+import { islands } from './islands.gen'
 
 function copyToClipboard(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text)
@@ -22,9 +22,12 @@ function copyToClipboard(text: string): Promise<void> {
   })
 }
 
-function enhanceCopyButtons() {
-  // Legacy way (vanilla JS) - keep for fallback
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-copy]:not([data-hydrated])'))
+function enhanceCopyButtonsFallback() {
+  // Legacy way (vanilla JS) - keep for no-island cases
+  const buttons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('button[data-copy]:not([data-hydrated])'),
+  )
+
   for (const btn of buttons) {
     btn.addEventListener('click', async () => {
       const text = btn.getAttribute('data-copy') ?? ''
@@ -49,32 +52,6 @@ function enhanceCopyButtons() {
   }
 }
 
-// Experimental: Island Hydration
-function hydrateIslands() {
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-copy]:not([data-hydrated])'))
-  
-  for (const btn of buttons) {
-    const text = btn.getAttribute('data-copy') ?? ''
-    if (!text) continue
-
-    // Mark as hydrated to prevent vanilla handler from attaching (if race condition)
-    btn.setAttribute('data-hydrated', 'true')
-    
-    // Mount Vitrio component over the existing button
-    // Note: In a real implementation, we would use hydration logic to attach to existing DOM.
-    // Here we replace/mount into the parent for demonstration of Vitrio runtime.
-    const parent = btn.parentElement
-    if (parent) {
-      const container = document.createElement('div')
-      // Copy classes to container or handle layout... simplified here:
-      container.className = "contents" 
-      parent.replaceChild(container, btn)
-      
-      render(() => <CopyButton text={text} />, container)
-    }
-  }
-}
-
 function enhanceTocActiveSection() {
   const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[data-toc-link]'))
   if (!links.length) return
@@ -95,32 +72,23 @@ function enhanceTocActiveSection() {
     if (a) a.setAttribute('data-active', '1')
   }
 
-  // Prefer IntersectionObserver (cheap + robust)
   if ('IntersectionObserver' in globalThis) {
     const obs = new IntersectionObserver(
       (entries) => {
-        // Choose the top-most visible heading
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => (a.boundingClientRect.top ?? 0) - (b.boundingClientRect.top ?? 0))
         const first = visible[0]?.target as HTMLElement | undefined
         setActive(first?.id ?? null)
       },
-      {
-        // activate a bit before it hits the top
-        rootMargin: '-20% 0px -70% 0px',
-        threshold: [0, 1],
-      },
+      { rootMargin: '-20% 0px -70% 0px', threshold: [0, 1] },
     )
 
     for (const h of headings) obs.observe(h)
-
-    // Initialize
     setActive(headings[0].id)
     return
   }
 
-  // Fallback: scroll handler
   const onScroll = () => {
     const y = window.scrollY
     let current: HTMLElement | null = null
@@ -136,13 +104,11 @@ function enhanceTocActiveSection() {
 }
 
 function main() {
-  // Try Vitrio hydration first
-  hydrateIslands()
+  hydrateIslands(islands)
 
-  // Fallback to vanilla for non-hydrated elements
-  enhanceCopyButtons()
+  // Fallback to vanilla for any leftover non-island copy buttons
+  enhanceCopyButtonsFallback()
 
-  // Enhance reference pages only if TOC exists (feature detection).
   if (document.querySelector('a[data-toc-link]')) {
     enhanceTocActiveSection()
   }

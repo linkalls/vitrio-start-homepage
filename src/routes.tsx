@@ -240,6 +240,8 @@ function DocArticle(p: { children: unknown }) {
   )
 }
 
+import { IslandMarker } from './server/islands'
+
 function CodeBlock(p: { title: string; lang: string; htmlKey?: keyof typeof HIGHLIGHT; code: string }) {
   const html = p.htmlKey ? HIGHLIGHT[p.htmlKey] : undefined
 
@@ -248,14 +250,20 @@ function CodeBlock(p: { title: string; lang: string; htmlKey?: keyof typeof HIGH
       <div class="flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-2">
         <div class="text-xs font-semibold text-zinc-300">{p.title}</div>
         <div class="flex items-center gap-3">
-          <button
-            type="button"
-            class="rounded-md border border-zinc-800 bg-zinc-950/40 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-950"
-            data-copy={p.code}
-            aria-label="Copy code"
-          >
-            Copy
-          </button>
+          <IslandMarker
+            name="CopyButton"
+            props={{ text: p.code }}
+            fallback={
+              <button
+                type="button"
+                class="rounded-md border border-zinc-800 bg-zinc-950/40 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-950"
+                data-copy={p.code}
+                aria-label="Copy code"
+              >
+                Copy
+              </button>
+            }
+          />
           <div class="text-[11px] text-zinc-500">{p.lang}</div>
         </div>
       </div>
