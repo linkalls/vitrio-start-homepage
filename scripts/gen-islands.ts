@@ -42,8 +42,9 @@ entries.forEach((e, i) => {
   const stem = JSON.stringify(e.stem)
   imports.push(`import * as ${alias} from ${JSON.stringify(e.importPath)}`)
 
+  // Keep it bundler-friendly: docs site islands must have a default export.
   const nameExpr = `${alias}.ISLAND_NAME ?? ${stem}`
-  const compExpr = `(${alias}.default ?? ${alias}[${alias}.ISLAND_NAME ?? ${stem}] ?? ${alias}[${stem}] ?? Object.values(${alias}).find((v) => typeof v === 'function'))`
+  const compExpr = `${alias}.default`
 
   regs.push(`  [${nameExpr}]: ${compExpr}`)
 })

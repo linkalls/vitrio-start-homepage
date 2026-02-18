@@ -6,5 +6,5 @@ import type { IslandRegistry } from './islands'
 import * as m0 from "./../islands/CopyButton.client"
 
 export const islands: IslandRegistry = {
-  [m0.ISLAND_NAME ?? "CopyButton"]: (m0.default ?? m0[m0.ISLAND_NAME ?? "CopyButton"] ?? m0["CopyButton"] ?? Object.values(m0).find((v) => typeof v === 'function'))
+  [m0.ISLAND_NAME ?? "CopyButton"]: m0.default
 }
