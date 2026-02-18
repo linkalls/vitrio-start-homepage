@@ -985,7 +985,7 @@ export const action = async (ctx, formData) => {
                   つまり「Vanilla JS を手書き」ではなく、<strong>普通に Vitrio で書いた TSX コンポーネント</strong> をそのまま client 側で mount できます。
                 </p>
                 <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
-                  さらに、registry は <span class="font-mono text-zinc-200">src/islands/*.client.tsx</span> をスキャンして自動生成できます。
+                  さらに、registry は <span class="font-mono text-zinc-200">src/**/**/*.client.tsx</span> をスキャンして自動生成できます。
                 </p>
               </div>
 
