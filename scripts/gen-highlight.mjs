@@ -72,16 +72,23 @@ if (method === 'POST') {
     key: 'project_tree_text',
     lang: 'text',
     code: `src/
-  routes.tsx            # your app: routing + loaders + actions + views
+  pages/
+    page.tsx                 # /
+    users/
+      [id]/
+        page.tsx             # /users/:id
+  routes.manual.tsx          # hand-written routes (tests/demos/etc)
+  routes.fs.gen.ts           # auto-generated from src/pages/**/page.tsx
+  routes.tsx                 # composes fsRoutes + manualRoutes
   client/
-    entry.tsx            # only loaded on routes with client: true
-    islands.tsx          # runtime that mounts islands into [data-island]
-    islands.gen.ts       # auto-generated registry (build step)
+    entry.tsx                # only loaded on routes with client: true
+    islands.tsx              # runtime that mounts islands into [data-island]
+    islands.gen.ts           # auto-generated islands registry (build step)
   server/
-    framework.tsx        # request handling (GET/POST, CSRF, flash, SSR)
-    island.tsx           # island() helper
+    framework.tsx            # request handling (GET/POST, CSRF, flash, SSR)
+    island.tsx               # island() helper
   components/
-    Counter.client.tsx   # client island (TSX) — file suffix declares "use client"` ,
+    Counter.client.tsx       # client island (TSX) — file suffix declares "use client"` ,
   },
   {
     key: 'route_simple_ts',

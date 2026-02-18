@@ -444,11 +444,11 @@ export const routes = [
             <section class="mt-16" id="project-structure">
               <h2 class="text-xl font-semibold">Project structure (Reactっぽく説明すると)</h2>
               <p class="mt-3 text-zinc-300 leading-7">
-                Next.js だと <span class="font-mono text-zinc-200">app/</span> とか <span class="font-mono text-zinc-200">pages/</span> に概念が散るけど、
-                vitrio-start は「全部 routes.tsx に集約」しつつ、必要なランタイムだけ分ける。
-                <strong>“Reactの考え方（propsでデータ渡す）”</strong> をそのまま SSR に持ち込む感じ。
+                vitrio-start は「routes をデータとして扱う」思想はそのままに、入口のDXとして <strong>file router</strong> も用意したのだ。
+                Next.js みたいに <span class="font-mono text-zinc-200">src/pages/**/page.tsx</span> を置くだけでルートが生える。
+                その裏では結局 <span class="font-mono text-zinc-200">defineRoute()</span> の配列に変換してるだけ。
               </p>
-              <CodeBlock title="Typical tree" lang="text" htmlKey="project_tree_text" code={`src/\n  routes.tsx\n  client/\n    entry.tsx\n    islands.tsx\n    islands.gen.ts\n  server/\n    framework.tsx\n    island.tsx\n  components/\n    Counter.client.tsx`} />
+              <CodeBlock title="Typical tree" lang="text" htmlKey="project_tree_text" code={`src/\n  pages/\n    page.tsx                 # /\n    users/\n      [id]/\n        page.tsx             # /users/:id\n  routes.manual.tsx          # 手書きルート（テスト/デモなど）\n  routes.fs.gen.ts           # file router から自動生成\n  routes.tsx                 # 2つを合成\n  client/\n    entry.tsx\n    islands.tsx\n    islands.gen.ts\n  server/\n    framework.tsx\n    island.tsx\n  components/\n    Counter.client.tsx`} />
             </section>
 
             <section class="mt-16" id="routing-in-one">
