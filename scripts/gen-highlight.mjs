@@ -141,7 +141,23 @@ action: async ({ request, env }) => {
 
   // Explicit redirect (still PRG)
   return redirect('/thanks', 303)
-}`, 
+}`,
+  },
+  {
+    key: 'file_router_page_tsx',
+    lang: 'tsx',
+    code: `export const client = true
+
+export const loader = async ({ params, env }) => {
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?')
+    .bind(params.id).first()
+  if (!user) return { notFound: true }
+  return { user }
+}
+
+export default function Page({ data, csrfToken }) {
+  return <div>User: {data.user.name}</div>
+}`,
   },
   {
     key: 'commands_bash',

@@ -1689,8 +1689,20 @@ bunx wrangler deploy`} />
               </p>
               <CodeBlock
                 title="src/pages/users/[id]/page.tsx"
-                lang="ts"
-                code={`export const client = true\n\nexport const loader = async ({ params, env }) => {\n  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?')\n    .bind(params.id).first()\n  if (!user) return { notFound: true }\n  return { user }\n}\n\nexport default function Page({ data, csrfToken }) {\n  return <div>User: {data.user.name}</div>\n}`}
+                lang="tsx"
+                htmlKey="file_router_page_tsx"
+                code={`export const client = true
+
+export const loader = async ({ params, env }) => {
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?')
+    .bind(params.id).first()
+  if (!user) return { notFound: true }
+  return { user }
+}
+
+export default function Page({ data, csrfToken }) {
+  return <div>User: {data.user.name}</div>
+}`}
               />
               <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4 text-sm text-zinc-400">
                 <div class="font-semibold text-zinc-200">対応してるexport</div>
