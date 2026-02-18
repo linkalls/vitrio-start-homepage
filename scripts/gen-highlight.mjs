@@ -73,6 +73,77 @@ if (method === 'POST') {
     lang: 'bash',
     code: `bun run dev\nbun run build\nbunx wrangler deploy`,
   },
+  {
+    key: 'hero_route_ts',
+    lang: 'ts',
+    code: `defineRoute({
+  path: '/posts/:slug',
+  // 1. Loader: Fetch data on GET (runs before SSR)
+  loader: async ({ params, env }) => {
+    const post = await env.DB.prepare('SELECT * FROM posts WHERE slug = ?')
+      .bind(params.slug).first()
+    if (!post) return { notFound: true }
+    return { post }
+  },
+  // 2. Action: Handle POST (PRG pattern)
+  action: async ({ params, request, env }) => {
+    const fd = await request.formData()
+    await env.DB.prepare('UPDATE posts SET likes = likes + 1 WHERE slug = ?')
+      .bind(params.slug).run()
+    return redirect(\`/posts/\${params.slug}\`, 303)
+  },
+  // 3. Component: Render HTML (SSR)
+  component: ({ data, csrfToken }) => (
+    <article>
+      <h1>{data.post.title}</h1>
+      <form method="post">
+        <input type="hidden" name="_csrf" value={csrfToken} />
+        <button>Like ({data.post.likes})</button>
+      </form>
+    </article>
+  ),
+})`,
+  },
+  {
+    key: 'routing_param_ts',
+    lang: 'ts',
+    code: `defineRoute({
+  path: '/users/:id', // matches /users/123
+  loader: ({ params }) => {
+    // params.id is "123"
+    return { userId: params.id }
+  },
+  component: ({ data }) => <div>User {data.userId}</div>
+})`,
+  },
+  {
+    key: 'loader_example_ts',
+    lang: 'ts',
+    code: `loader: async ({ params, env }) => {
+  // Parallel fetch
+  const [user, posts] = await Promise.all([
+    fetchUser(params.id),
+    fetchPosts(params.id),
+  ])
+  
+  // Return plain object (serialization-safe)
+  // This is passed to component as 'data' prop
+  return { user, posts }
+}`,
+  },
+  {
+    key: 'worker_env_ts',
+    lang: 'ts',
+    code: `// src/server/workers.ts
+export default {
+  fetch(request: Request, env: Env, ctx: any) {
+    // Inject env into global scope for deep access without prop drilling
+    // (A pragmatic tradeoff for SSR frameworks on Workers)
+    ;(globalThis as any).__VITRIO_ENV = env
+    return app.fetch(request, env, ctx)
+  },
+}`,
+  },
 ]
 
 const h = await createHighlighter({

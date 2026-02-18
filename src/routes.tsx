@@ -318,24 +318,17 @@ export const routes = [
                 </div>
               </div>
 
-              <div id="quickstart" class="rounded-3xl border border-zinc-800 bg-zinc-900/30 p-6 shadow-sm">
-                <div class="flex items-center justify-between">
-                  <div class="text-sm font-semibold">Quickstart</div>
-                  <div class="text-xs text-zinc-500">bun + wrangler</div>
+              <div class="rounded-3xl border border-zinc-800 bg-zinc-900/30 p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="text-sm font-semibold text-indigo-300">Route Definition</div>
+                  <div class="text-xs text-zinc-500">All-in-one file</div>
                 </div>
-                <pre class="mt-4 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 text-xs text-zinc-200">
-                  <code>{`bun install\nbun run build\nbunx wrangler deploy`}</code>
-                </pre>
-                <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                  <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-                    <div class="text-xs font-semibold text-zinc-400">Runtime</div>
-                    <div class="mt-1 text-sm font-semibold">Workers</div>
-                  </div>
-                  <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
-                    <div class="text-xs font-semibold text-zinc-400">Mode</div>
-                    <div class="mt-1 text-sm font-semibold">SSR-first</div>
-                  </div>
-                </div>
+                <CodeBlock
+                  title="src/routes.tsx"
+                  lang="ts"
+                  htmlKey="hero_route_ts"
+                  code={`defineRoute({\n  path: '/posts/:slug',\n  // 1. Loader: Fetch data on GET (runs before SSR)\n  loader: async ({ params, env }) => {\n    const post = await env.DB.prepare('SELECT * FROM posts WHERE slug = ?')\n      .bind(params.slug).first()\n    if (!post) return { notFound: true }\n    return { post }\n  },\n  // 2. Action: Handle POST (PRG pattern)\n  action: async ({ params, request, env }) => {\n    const fd = await request.formData()\n    await env.DB.prepare('UPDATE posts SET likes = likes + 1 WHERE slug = ?')\n      .bind(params.slug).run()\n    return redirect(\`/posts/\${params.slug}\`, 303)\n  },\n  // 3. Component: Render HTML (SSR)\n  component: ({ data, csrfToken }) => (\n    <article>\n      <h1>{data.post.title}</h1>\n      <form method="post">\n        <input type="hidden" name="_csrf" value={csrfToken} />\n        <button>Like ({data.post.likes})</button>\n      </form>\n    </article>\n  ),\n})`}
+                />
               </div>
             </div>
 
@@ -540,8 +533,7 @@ export const routes = [
       z.object({ version: z.string() }).parse(data)
       const toc: TocLink[] = [
         { href: '#overview', label: 'Overview' },
-        { href: '#matching', label: 'Matching' },
-        { href: '#params', label: 'Params' },
+        { href: '#dynamic-params', label: 'Dynamic params' },
         { href: '#contracts', label: 'Contracts' },
       ]
 
@@ -555,12 +547,10 @@ export const routes = [
           <DocArticle>
             <section id="overview">
               <h2>Overview</h2>
-              <p class="mt-3">ルートは配列で定義。マッチは親→子っぽく進み、actionはより深い（leaf）を優先する。</p>
-            </section>
-
-            <section id="matching">
-              <h2>Matching</h2>
-              <p class="mt-3">ルート定義はデータ。だから「何が起きるか」が読みやすい。</p>
+              <p class="mt-3">
+                ルートは <span class="font-mono text-zinc-200">routes.tsx</span> 内の配列として定義します。
+                上から順にマッチングを行いますが、<span class="font-mono text-zinc-200">action</span> は「より深い（leaf-most）」ルートが優先されます。
+              </p>
               <CodeBlock
                 title="routes.tsx"
                 lang="ts"
@@ -569,17 +559,30 @@ export const routes = [
               />
             </section>
 
-            <section id="params">
-              <h2>Params</h2>
-              <p class="mt-3">params は parent → child でマージされる想定。重複キーは後勝ち（= より具体的なルート側が強い）。</p>
+            <section id="dynamic-params">
+              <h2>Dynamic Params</h2>
+              <p class="mt-3">
+                パスに <span class="font-mono text-zinc-200">:param</span> を含めることで動的な値をキャプチャできます。
+                キャプチャされた値は <span class="font-mono text-zinc-200">loader</span> や <span class="font-mono text-zinc-200">action</span> の <span class="font-mono text-zinc-200">params</span> オブジェクトとして受け取れます。
+              </p>
+              <CodeBlock
+                title="Dynamic Params Example"
+                lang="ts"
+                htmlKey="routing_param_ts"
+                code={`defineRoute({\n  path: '/users/:id', // matches /users/123\n  loader: ({ params }) => {\n    // params.id is "123"\n    return { userId: params.id }\n  },\n  component: ({ data }) => <div>User {data.userId}</div>\n})`}
+              />
+              <p class="mt-3 text-sm text-zinc-400">
+                親ルート（例: <span class="font-mono text-zinc-200">/users</span>）と子ルート（例: <span class="font-mono text-zinc-200">/users/:id</span>）でネストした場合、
+                params はマージされますが、同名のキーがある場合は「より深い」ルートの値が優先されます。
+              </p>
             </section>
 
             <section id="contracts">
               <h2>Contracts</h2>
               <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-400">
-                <li>末尾スラッシュは正規化（/foo/ → /foo）</li>
-                <li>より深い action を優先（leaf-first）</li>
-                <li>GET の loader は SSR 前に実行</li>
+                <li>末尾スラッシュは正規化されます（/foo/ → /foo への301リダイレクト）。</li>
+                <li>POST時は、マッチした中で「最も深い」action だけが実行されます（意図しない親actionの暴発防止）。</li>
+                <li>GET時の loader は SSR 前に並列（または順次）で実行され、結果はコンポーネントに渡されます。</li>
               </ul>
             </section>
           </DocArticle>
@@ -596,34 +599,74 @@ export const routes = [
     component: () => {
       const toc: TocLink[] = [
         { href: '#overview', label: 'Overview' },
-        { href: '#order', label: 'Execution order' },
-        { href: '#cache', label: 'Loader cache' },
+        { href: '#pattern', label: 'Loader Pattern' },
+        { href: '#lifecycle', label: 'Lifecycle' },
       ]
 
       return (
         <RefChrome
           path="/reference/data-loading"
           title="Data loading"
-          subtitle="loaderをいつ実行するか、どうキャッシュするか。"
+          subtitle="GETリクエスト時にデータを取得し、SSRを行うまでの流れ。"
           toc={toc}
         >
           <DocArticle>
             <section id="overview">
               <h2>Overview</h2>
               <p class="mt-3">
-                SSR-firstなので、GET は「loader → SSR」。クライアントの水和がなくても、ページは完成する。
+                <span class="font-mono text-zinc-200">loader</span> は、GETリクエスト時にサーバーサイドで実行される非同期関数です。
+                データベースへの問い合わせや外部APIコールを行い、その結果をオブジェクトとして返します。
+                返されたデータは、<span class="font-mono text-zinc-200">component</span> の <span class="font-mono text-zinc-200">props.data</span> に型安全に渡されます。
               </p>
             </section>
 
-            <section id="order">
-              <h2>Execution order</h2>
-              <p class="mt-3">GET の時点で loader を回す。SSR はその後。</p>
+            <section id="pattern">
+              <h2>Loader Pattern</h2>
+              <p class="mt-3">
+                <span class="font-mono text-zinc-200">params</span> や <span class="font-mono text-zinc-200">env</span> を使ってデータを取得します。
+                404 Not Found を返したい場合は、専用のオブジェクトを返すか、エラーを投げます（フレームワークがハンドリングします）。
+              </p>
+              <CodeBlock
+                title="Loader Example"
+                lang="ts"
+                htmlKey="loader_example_ts"
+                code={`loader: async ({ params, env }) => {
+  // Parallel fetch
+  const [user, posts] = await Promise.all([
+    fetchUser(params.id),
+    fetchPosts(params.id),
+  ])
+  
+  // Return plain object (serialization-safe)
+  // This is passed to component as 'data' prop
+  return { user, posts }
+}`}
+              />
             </section>
 
-            <section id="cache">
-              <h2>Loader cache</h2>
-              <p class="mt-3">
-                loader 結果は request スコープでキャッシュ（prime）される前提。重い計算を二重にしない。
+            <section id="lifecycle">
+              <h2>Lifecycle</h2>
+              <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
+                  <div class="text-sm font-semibold text-emerald-300">Success Flow</div>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>Route match</li>
+                    <li><strong>Run loader()</strong> (await)</li>
+                    <li>Cache result (request scope)</li>
+                    <li>Render Component (SSR) with data</li>
+                  </ul>
+                </div>
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4">
+                  <div class="text-sm font-semibold text-rose-300">Error / Redirect</div>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>Loader throws or returns redirect</li>
+                    <li>Framework catches it</li>
+                    <li>Return 302/404/500 response immediately</li>
+                  </ul>
+                </div>
+              </div>
+              <p class="mt-3 text-sm text-zinc-400">
+                この仕組みにより、コンポーネントレンダリング時には「データが存在すること」が保証され、条件分岐が減ります（Render-as-you-fetch ではなく Fetch-then-render）。
               </p>
             </section>
           </DocArticle>
@@ -838,8 +881,8 @@ if (method === 'POST') {
     component: () => {
       const toc: TocLink[] = [
         { href: '#assets', label: 'Assets' },
+        { href: '#env', label: 'Env Injection' },
         { href: '#wrangler', label: 'Wrangler' },
-        { href: '#env', label: 'Env' },
       ]
 
       return (
@@ -853,22 +896,47 @@ if (method === 'POST') {
             <section id="assets">
               <h2>Assets</h2>
               <p class="mt-3">
-                静的アセットは assets binding で配信し、それ以外は Worker が SSR を返す。<span class="font-mono text-zinc-200">run_worker_first = true</span> が重要。
+                静的アセットは assets binding で配信し、それ以外は Worker が SSR を返します。
+                <span class="font-mono text-zinc-200">run_worker_first = false</span> にすることで、静的ファイル（CSS, JS, 画像）はWorker起動なしで配信され、高速・安価になります。
               </p>
               <CodeBlock
                 title="wrangler.toml"
                 lang="toml"
                 htmlKey="wrangler_toml"
-                code={`[assets]\ndirectory = "dist/client"\nbinding = "ASSETS"\nrun_worker_first = true`}
+                code={`[assets]\ndirectory = "dist/client"\nbinding = "ASSETS"\nrun_worker_first = false`}
               />
             </section>
+
+            <section id="env">
+              <h2>Env Injection</h2>
+              <p class="mt-3">
+                SSRフレームワークでは、Env（DBバインディングやAPIキー）をコンポーネントツリーの奥深くへ渡すのが面倒になりがちです。
+                vitrio-start では、リクエスト処理開始時に <span class="font-mono text-zinc-200">globalThis.__VITRIO_ENV</span> に注入するパターンを推奨しています。
+              </p>
+              <CodeBlock
+                title="src/server/workers.ts"
+                lang="ts"
+                htmlKey="worker_env_ts"
+                code={`// src/server/workers.ts
+export default {
+  fetch(request: Request, env: Env, ctx: any) {
+    // Make env bindings available to non-handler modules (e.g. config.ts).
+    ;(globalThis as any).__VITRIO_ENV = env
+    return app.fetch(request, env, ctx)
+  },
+}`}
+              />
+              <p class="mt-3 text-sm text-zinc-400">
+                これにより、<span class="font-mono text-zinc-200">src/server/config.ts</span> などから同期的に <span class="font-mono text-zinc-200">env</span> にアクセス可能になり、プロップバケツリレーを回避できます（Workers環境特有のプラクティスです）。
+              </p>
+            </section>
+
             <section id="wrangler">
               <h2>Wrangler</h2>
-              <p class="mt-3">この環境だと API token 運用が安定。必要なら <span class="font-mono text-zinc-200">account_id</span> を設定して memberships lookup を回避。</p>
-            </section>
-            <section id="env">
-              <h2>Env</h2>
-              <p class="mt-3">Workers の env を直接参照せず、起動時に <span class="font-mono text-zinc-200">globalThis.__VITRIO_ENV</span> へ流す方式で統一するのが安全。</p>
+              <p class="mt-3">
+                この環境（CI/CDやリモートサーバー）では API token 運用が安定します。
+                <span class="font-mono text-zinc-200">deploy</span> 時にアカウントIDの自動解決が失敗する場合は、<span class="font-mono text-zinc-200">wrangler.toml</span> に <span class="font-mono text-zinc-200">account_id</span> を明記してください。
+              </p>
             </section>
           </DocArticle>
         </RefChrome>
