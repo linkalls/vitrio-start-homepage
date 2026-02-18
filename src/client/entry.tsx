@@ -1,10 +1,8 @@
-// Client entry (loaded only for routes with RouteDef.client=true).
-// Goal: small, page-enhancing JS ("use client"-style) while keeping SSR content usable.
+import { render } from '@potetotown/vitrio/client'
+import { CopyButton } from './features/copy'
 
 function copyToClipboard(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text)
-
-  // Fallback
   return new Promise((resolve, reject) => {
     try {
       const ta = document.createElement('textarea')
@@ -25,7 +23,8 @@ function copyToClipboard(text: string): Promise<void> {
 }
 
 function enhanceCopyButtons() {
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-copy]'))
+  // Legacy way (vanilla JS) - keep for fallback
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-copy]:not([data-hydrated])'))
   for (const btn of buttons) {
     btn.addEventListener('click', async () => {
       const text = btn.getAttribute('data-copy') ?? ''
@@ -50,62 +49,43 @@ function enhanceCopyButtons() {
   }
 }
 
-function setActiveToc(hash: string) {
-  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[data-toc-link]'))
-  for (const a of links) {
-    const isActive = a.getAttribute('href') === hash
-    a.classList.toggle('bg-zinc-950/60', isActive)
-    a.classList.toggle('text-zinc-100', isActive)
-    a.classList.toggle('text-zinc-300', !isActive)
+// Experimental: Island Hydration
+function hydrateIslands() {
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-copy]:not([data-hydrated])'))
+  
+  for (const btn of buttons) {
+    const text = btn.getAttribute('data-copy') ?? ''
+    if (!text) continue
+
+    // Mark as hydrated to prevent vanilla handler from attaching (if race condition)
+    btn.setAttribute('data-hydrated', 'true')
+    
+    // Mount Vitrio component over the existing button
+    // Note: In a real implementation, we would use hydration logic to attach to existing DOM.
+    // Here we replace/mount into the parent for demonstration of Vitrio runtime.
+    const parent = btn.parentElement
+    if (parent) {
+      const container = document.createElement('div')
+      // Copy classes to container or handle layout... simplified here:
+      container.className = "contents" 
+      parent.replaceChild(container, btn)
+      
+      render(() => <CopyButton text={text} />, container)
+    }
   }
-}
-
-function enhanceTocActiveSection() {
-  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[data-toc-link]'))
-  const ids = links
-    .map((a) => (a.getAttribute('href') ?? '').trim())
-    .filter((h) => h.startsWith('#'))
-    .map((h) => h.slice(1))
-
-  const sections = ids
-    .map((id) => document.getElementById(id))
-    .filter((x): x is HTMLElement => !!x)
-
-  if (sections.length === 0) return
-
-  const onIntersect: IntersectionObserverCallback = (entries) => {
-    // pick the top-most intersecting entry
-    const visible = entries
-      .filter((e) => e.isIntersecting)
-      .sort((a, b) => (a.boundingClientRect.top ?? 0) - (b.boundingClientRect.top ?? 0))[0]
-
-    if (!visible?.target) return
-    const id = (visible.target as HTMLElement).id
-    if (id) setActiveToc('#' + id)
-  }
-
-  const io = new IntersectionObserver(onIntersect, {
-    root: null,
-    // Trigger a bit before the heading reaches the top (Next.js docs-ish).
-    rootMargin: '-25% 0px -70% 0px',
-    threshold: [0, 1],
-  })
-
-  for (const s of sections) io.observe(s)
-
-  // Initial state
-  if (location.hash) setActiveToc(location.hash)
-  else setActiveToc('#' + sections[0].id)
-
-  window.addEventListener('hashchange', () => setActiveToc(location.hash))
 }
 
 function main() {
-  // Enhance reference pages only.
-  if (!location.pathname.startsWith('/reference')) return
+  // Try Vitrio hydration first
+  hydrateIslands()
 
+  // Fallback to vanilla for non-hydrated elements
   enhanceCopyButtons()
-  enhanceTocActiveSection()
+
+  // Enhance reference pages only if TOC exists (feature detection).
+  if (document.querySelector('a[data-toc-link]')) {
+    enhanceTocActiveSection()
+  }
 }
 
 main()
