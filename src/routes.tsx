@@ -511,12 +511,20 @@ export const routes = [
 
             <section id="quickstart">
               <h2>Quickstart</h2>
-              <p class="mt-3">最短の流れ。細部は各ページに分解してある。</p>
+              <p class="mt-3">
+                最短の流れ。まずはスターターを clone して動かすのが早いです。
+                スターター（Next.js / TanStack Start の代替ポジション）:
+                <a class="ml-2 underline text-indigo-200 hover:text-indigo-100" href="https://github.com/linkalls/vitrio-start" target="_blank" rel="noreferrer">github.com/linkalls/vitrio-start</a>
+              </p>
               <div class="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60">
                 <pre class="overflow-x-auto p-4 text-[12px] leading-relaxed text-zinc-200">
-                  <code>{`bun install\nbun run build\nbunx wrangler deploy`}</code>
+                  <code>{`git clone https://github.com/linkalls/vitrio-start\ncd vitrio-start\nbun install\nbun run build\nbunx wrangler deploy`}</code>
                 </pre>
               </div>
+              <p class="mt-3 text-sm text-zinc-400">
+                ※ドキュメントサイト（このサイト）のコードはこちら:
+                <a class="ml-2 underline text-indigo-200 hover:text-indigo-100" href="https://github.com/linkalls/vitrio-start-homepage" target="_blank" rel="noreferrer">github.com/linkalls/vitrio-start-homepage</a>
+              </p>
             </section>
           </DocArticle>
         </RefChrome>
@@ -970,11 +978,14 @@ export const action = async (ctx, formData) => {
                 </p>
               </div>
               
-              <div class="mt-4 rounded-2xl border border-yellow-800/50 bg-yellow-950/10 p-4">
-                <h3 class="text-sm font-semibold text-yellow-500">Wait, do I write raw JS?</h3>
+              <div class="mt-4 rounded-2xl border border-emerald-800/40 bg-emerald-950/10 p-4">
+                <h3 class="text-sm font-semibold text-emerald-300">Now: TSX Islands (use-client-ish)</h3>
                 <p class="mt-2 text-sm text-zinc-300 leading-relaxed">
-                  現状の vitrio-start では、クライアントサイドロジックは <span class="font-mono text-zinc-200">entry.tsx</span> に記述する必要があります（Vanilla JS / TS）。
-                  しかし、近い将来 <strong>Islands (Hydration)</strong> をサポートし、`.tsx` コンポーネントをそのままクライアントで再利用（ハイドレーション）できるようにする計画があります。
+                  vitrio-start は <span class="font-mono text-zinc-200">data-island</span> マーカー + registry で Islands をサポートします。
+                  つまり「Vanilla JS を手書き」ではなく、<strong>普通に Vitrio で書いた TSX コンポーネント</strong> をそのまま client 側で mount できます。
+                </p>
+                <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
+                  さらに、registry は <span class="font-mono text-zinc-200">src/islands/*.client.tsx</span> をスキャンして自動生成できます。
                 </p>
               </div>
 
