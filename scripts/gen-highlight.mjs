@@ -69,6 +69,74 @@ if (method === 'POST') {
     code: `[assets]\ndirectory = "dist/client"\nbinding = "ASSETS"\nrun_worker_first = false`,
   },
   {
+    key: 'project_tree_text',
+    lang: 'text',
+    code: `src/
+  routes.tsx            # your app: routing + loaders + actions + views
+  client/
+    entry.tsx            # only loaded on routes with client: true
+    islands.tsx          # runtime that mounts islands into [data-island]
+    islands.gen.ts       # auto-generated registry (build step)
+  server/
+    framework.tsx        # request handling (GET/POST, CSRF, flash, SSR)
+    island.tsx           # island() helper
+  components/
+    Counter.client.tsx   # client island (TSX) — file suffix declares "use client"` ,
+  },
+  {
+    key: 'route_simple_ts',
+    lang: 'ts',
+    code: `import { defineRoute } from '@potetotown/vitrio-start'
+
+export const routes = [
+  defineRoute({
+    path: '/',
+    loader: () => ({ message: 'hello' }),
+    component: ({ data }) => <h1>{data.message}</h1>,
+  }),
+]`,
+  },
+  {
+    key: 'loader_parallel_ts',
+    lang: 'ts',
+    code: `loader: async ({ params, request, env }) => {
+  // params: from the URL (e.g. /posts/:slug)
+  // request: the incoming Request
+  // env: Cloudflare bindings (D1/KV/R2/etc)
+
+  // Parallelize I/O (Workers likes this)
+  const [post, user] = await Promise.all([
+    getPost(env.DB, params.slug),
+    getViewer(request),
+  ])
+
+  if (!post) return { notFound: true }
+
+  // Return plain JSON-ish data (serialization-safe)
+  return { post, user }
+}`, 
+  },
+  {
+    key: 'action_prg_ts',
+    lang: 'ts',
+    code: `import { redirect } from './server/response'
+
+action: async ({ request, env }) => {
+  const fd = await request.formData()
+  const email = fd.get('email')
+
+  if (typeof email !== 'string' || !email.includes('@')) {
+    // framework will set flash cookie and redirect back (303)
+    return { ok: false, error: 'invalid email' }
+  }
+
+  await env.DB.prepare('INSERT INTO users(email) VALUES (?)').bind(email).run()
+
+  // Explicit redirect (still PRG)
+  return redirect('/thanks', 303)
+}`, 
+  },
+  {
     key: 'commands_bash',
     lang: 'bash',
     code: `bun run dev\nbun run build\nbunx wrangler deploy`,

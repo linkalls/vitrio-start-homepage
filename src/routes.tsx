@@ -419,14 +419,122 @@ export const routes = [
             <section class="mt-16" id="deploy-cost">
               <h2 class="text-xl font-semibold">Deploy & Cost</h2>
               <p class="mt-3 text-zinc-300 leading-7">
-                静的アセットは <span class="font-mono text-zinc-200">[assets]</span> で CDN 配信し、Worker を起動しない。
-                HTML（SSR）だけ Worker が返すので、コストと速度が読みやすい。
+                vitrio-start は「静的アセットは CDN、HTML だけ Worker」っていう割り切りを強めに推してるのだ。
+                これで <strong>リクエスト単価</strong> と <strong>パフォーマンス</strong> が読みやすくなる。
               </p>
-              <CodeBlock
-                title="wrangler.toml"
-                lang="toml"
-                code={`[assets]\ndirectory = \"dist/client\"\nbinding = \"ASSETS\"\nrun_worker_first = false`}
-              />
+              <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-zinc-100">Static assets</div>
+                  <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
+                    CSS/JS/画像は <span class="font-mono text-zinc-200">assets binding</span> で配信。
+                    <span class="font-mono text-zinc-200">run_worker_first = false</span> なら Worker を起動せずに CDN が返す。
+                  </p>
+                </div>
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-zinc-100">HTML (SSR)</div>
+                  <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
+                    HTML は Worker が生成して返す。ここだけが compute の対象。
+                    つまり「どこでコストが発生するか」が直感的なのだ。
+                  </p>
+                </div>
+              </div>
+              <CodeBlock title="wrangler.toml" lang="toml" htmlKey="wrangler_toml" code={`[assets]\ndirectory = "dist/client"\nbinding = "ASSETS"\nrun_worker_first = false`} />
+            </section>
+
+            <section class="mt-16" id="project-structure">
+              <h2 class="text-xl font-semibold">Project structure (Reactっぽく説明すると)</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                Next.js だと <span class="font-mono text-zinc-200">app/</span> とか <span class="font-mono text-zinc-200">pages/</span> に概念が散るけど、
+                vitrio-start は「全部 routes.tsx に集約」しつつ、必要なランタイムだけ分ける。
+                <strong>“Reactの考え方（propsでデータ渡す）”</strong> をそのまま SSR に持ち込む感じ。
+              </p>
+              <CodeBlock title="Typical tree" lang="text" htmlKey="project_tree_text" code={`src/\n  routes.tsx\n  client/\n    entry.tsx\n    islands.tsx\n    islands.gen.ts\n  server/\n    framework.tsx\n    island.tsx\n  components/\n    Counter.client.tsx`} />
+            </section>
+
+            <section class="mt-16" id="routing-in-one">
+              <h2 class="text-xl font-semibold">Routing: ルート = 設定オブジェクト（Reactでいう props みたいなもん）</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                ルーティングは「ファイル構造」じゃなくて、<span class="font-mono text-zinc-200">defineRoute()</span> の配列。
+                これが React のコンポーネントツリーみたいに、アプリの形を決める。
+              </p>
+              <CodeBlock title="routes.tsx" lang="ts" htmlKey="route_simple_ts" code={`import { defineRoute } from '@potetotown/vitrio-start'\n\nexport const routes = [\n  defineRoute({\n    path: '/',\n    loader: () => ({ message: 'hello' }),\n    component: ({ data }) => <h1>{data.message}</h1>,\n  }),\n]`} />
+              <div class="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                <div class="text-sm font-semibold text-indigo-200">Reactっぽい読み替え</div>
+                <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                  <li><span class="font-mono text-zinc-200">loader()</span> = サーバー側で props を作る関数</li>
+                  <li><span class="font-mono text-zinc-200">component()</span> = props を受け取って HTML を返す React component</li>
+                  <li><span class="font-mono text-zinc-200">action()</span> = POST のイベントハンドラ（ただし HTTP）</li>
+                </ul>
+              </div>
+            </section>
+
+            <section class="mt-16" id="data-loading-deep">
+              <h2 class="text-xl font-semibold">Data loading: loader は "GET のための関数"</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                loader は SSR の前に走って、コンポーネントに渡すデータを作る。
+                React で言うなら「サーバーで props を作って渡す」だけ。
+                重要なのは、返す値を <strong>JSON-ish</strong>（シリアライズ安全）にすること。
+              </p>
+              <CodeBlock title="loader (parallel I/O)" lang="ts" htmlKey="loader_parallel_ts" code={`loader: async ({ params, request, env }) => {\n  const [post, user] = await Promise.all([\n    getPost(env.DB, params.slug),\n    getViewer(request),\n  ])\n\n  if (!post) return { notFound: true }\n\n  return { post, user }\n}`} />
+              <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-emerald-300">Rule of thumb</div>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>I/O は <span class="font-mono text-zinc-200">Promise.all</span> で並列</li>
+                    <li>例外は 500（= バグ）として扱う</li>
+                    <li>notFound は <span class="font-mono text-zinc-200">{'{ notFound: true }'}</span> で表現</li>
+                  </ul>
+                </div>
+                <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                  <div class="text-sm font-semibold text-amber-300">Anti-pattern</div>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                    <li>loader で JSX を返す（やらない）</li>
+                    <li>class instance を返す（シリアライズで死ぬ）</li>
+                    <li>グローバル mutable state に依存（Workersで事故る）</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+            <section class="mt-16" id="actions-deep">
+              <h2 class="text-xl font-semibold">Actions: action は "POST のための関数"（PRGで脳を守る）</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                action はフォームPOSTを受けて副作用を起こす。
+                でも React の onSubmit みたいに「その場で画面を更新」じゃなくて、
+                <strong>POST → 303 → GET</strong> の PRG に寄せる。
+                これでリロード/戻る/二重送信の地獄が減るのだ。
+              </p>
+              <CodeBlock title="action (PRG)" lang="ts" htmlKey="action_prg_ts" code={`import { redirect } from './server/response'\n\naction: async ({ request, env }) => {\n  const fd = await request.formData()\n  const email = fd.get('email')\n\n  if (typeof email !== 'string' || !email.includes('@')) {\n    return { ok: false, error: 'invalid email' }\n  }\n\n  await env.DB.prepare('INSERT INTO users(email) VALUES (?)').bind(email).run()\n  return redirect('/thanks', 303)\n}`} />
+              <div class="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+                <div class="text-sm font-semibold text-zinc-100">Flash（1-shot cookie）</div>
+                <p class="mt-2 text-sm text-zinc-400 leading-relaxed">
+                  action が返した結果は、フレームワーク側で flash cookie に入れて次の GET で読める。
+                  React で言うと「navigate した後に toast を出す」ための最小機構。
+                </p>
+              </div>
+            </section>
+
+            <section class="mt-16" id="islands-deep">
+              <h2 class="text-xl font-semibold">Islands: "use client" を雑に言うと "*.client.tsx を置け"</h2>
+              <p class="mt-3 text-zinc-300 leading-7">
+                ここは Next.js の <span class="font-mono text-zinc-200">"use client"</span> と似た気持ちで使えるようにしてある。
+                <span class="font-mono text-zinc-200">src/**/**/*.client.tsx</span> を置くと build が registry を生成して、
+                SSR が吐いた <span class="font-mono text-zinc-200">data-island</span> を探して mount する。
+              </p>
+              <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Server</div>
+                  <CodeBlock title="SSR (call-site)" lang="ts" htmlKey="island_server_ts" code={`// routes.tsx (SSR)\nimport { island } from './server/island'\nimport { Counter } from './components/Counter'\n\nexport function Page() {\n  return (\n    <div>\n      {island(Counter, { initial: 1 }, { name: 'Counter' })}\n    </div>\n  )\n}`} />
+                </div>
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Client</div>
+                  <CodeBlock title="client entry" lang="ts" htmlKey="island_client_ts" code={`// client/entry.tsx\nimport { hydrateIslands } from './islands'\n\nasync function main() {\n  const { islands } = await import('./islands.gen')\n  hydrateIslands(islands)\n}\n\nmain()`} />
+                </div>
+              </div>
+              <p class="mt-4 text-sm text-zinc-400 leading-relaxed">
+                ※いまの "hydration" は true hydration（DOMを再利用）じゃなくて、island container に mount する方式。
+                ただ、UIを小さく切って使う前提なら体感はかなり良い。
+              </p>
             </section>
 
             <div class="mt-16 flex items-center justify-between border-t border-zinc-900/80 py-8 text-xs text-zinc-500">
@@ -434,6 +542,7 @@ export const routes = [
               <div class="flex items-center gap-3">
                 <a class="hover:text-zinc-300" href="#quickstart">Quickstart</a>
                 <a class="hover:text-zinc-300" href="/reference">Reference</a>
+                <a class="hover:text-zinc-300" href="https://github.com/linkalls/vitrio-start" target="_blank" rel="noreferrer">GitHub</a>
               </div>
             </div>
           </div>
